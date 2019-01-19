@@ -1,0 +1,27 @@
+{
+  "name": "project-manager-api",
+  "version": "0.0.0",
+  "description": "NodeJS Rest API for Project Manager",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Marc Vilella",
+  "license": "ISC",
+  "dependencies": {
+    "argon2": "^0.19.3",
+    "jsonwebtoken": "^8.4.0",
+    "moment": "^2.23.0",
+    "mongo-sanitize": "^1.0.1",
+    "mongodb": "^3.1.12",
+    "nodemailer": "^5.1.1",
+    "restify": "^7.6.0",
+    "restify-cors-middleware": "^1.1.1",
+    "restify-errors": "^6.1.1",
+    "winston": "^3.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^1.18.9"
+  }
+}
