@@ -38,8 +38,8 @@ const server = restify.createServer({
 const cors = corsMiddleware({
   preflightMaxAge: 5, //Optional
   origins: ['http://localhost:4200'],
-  allowHeaders: ['API-Token'],
-  exposeHeaders: ['API-Token-Expiry']
+  allowHeaders: ['Authorization'],
+  exposeHeaders: ['Authorization-Expiry']
 })
 
 /**
@@ -68,9 +68,8 @@ server.listen(config.development.port, () => {
 
     //Create BBDDs if they don't exist and creat it
     let userModel = require('./models/user'); 
-    client.db('ProjectManager').createCollection('users', {validator: userModel.UserValidator}, (err) => { if(err)console.log(err)});
-    client.db('ProjectManager').collection('users').createIndex( { email: 'text' }, { unique: true }, (err) => {if(err)console.log(err)} )
-    //client.db('ProjectManager').collection('users').insertOne(userModel.User, (err, res) => { if(err)console.log(err) })
+    //client.db('ProjectManager').createCollection('users', {validator: userModel.UserValidator}, (err) => { if(err)console.log(err)});
+    //client.db('ProjectManager').collection('users').createIndex( { email: 1 }, { unique: true }, (err) => {if(err)console.log(err)} );
 
     module.exports = client.db('ProjectManager');
 

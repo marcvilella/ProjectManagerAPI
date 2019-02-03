@@ -48,7 +48,7 @@ function createVerificationToken (user){
             name: user.name,
             surname: user.surname,
             email: user.email,
-            created: user.created_at
+            modifiedAt: user.modifiedAt
       }, emailVer_cert_priv, { algorithm: 'RS256', expiresIn: '1d' });
 }
 

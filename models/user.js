@@ -3,7 +3,7 @@
 const UserValidator = {
       $jsonSchema: {
             bsonType: 'object',
-            required: [ 'name', 'surname', 'email', 'password', 'role', 'status', 'image', 'createdAt', 'modifiedAt' ],
+            required: [ 'name', 'surname', 'email', 'password', 'company', 'language', 'role', 'status', 'image', 'createdAt', 'modifiedAt' ],
             properties: {
                   name: {
                         bsonType: 'string',
@@ -21,6 +21,12 @@ const UserValidator = {
                   },
                   password: {
                         bsonType: 'string'
+                  },
+                  company: {
+                        bsonType: 'string'
+                  },
+                  language: {
+                        enum: [ 'english', 'spanish' ]
                   },
                   role: {
                         enum: [ 'ROLE_USER', 'ROLE_TASK_ADMIN', 'ROLE_PROJECT_ADMIN', 'ROLE_ADMIN' ]
@@ -46,6 +52,8 @@ const User = {
       surname: String,
       email: String,
       password: String,
+      company: String,
+      language: 'english',
       role: 'ROLE_USER',
       status: 'pending',
       image: 'null',

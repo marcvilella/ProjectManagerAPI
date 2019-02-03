@@ -1,5 +1,7 @@
 'use strict'
 
+//#region  Imports
+
 const errors = require('restify-errors');
 const winston = require('winston');
 const argon2 = require('argon2');
@@ -15,12 +17,13 @@ const modelUser = require('../models/user');
 const emailPattern = /^[a-z0-9](\.?[a-z0-9_-]){0,}@[a-z0-9-]+\.([a-z]{1,6}\.)?[a-z]{2,6}$/;
 const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[_!@#\$%\^&\*])(?=.{8,20})/;
 
+//#endregion
+
 function signUpUser(req, res, next){
       
       let params = sanitize(req.body);
 
-      console.log(req.headers['x-forwarded-for'] || req.connection.remoteAddress)
-      if(params.name != null && params.surname != null && params.email != null && params.password){   
+      if(params.name != null && params.surname != null && params.email != null && params.password != null){   
             
             //Check if it a valid email
             if(!emailPattern.test(params.email))
@@ -36,18 +39,25 @@ function signUpUser(req, res, next){
                   user.name = params.name;
                   user.surname = params.surname;
                   user.password = hash;
+                  user.company = params.company;
+                  user.language = params.language;
                   user.createdAt = dbhelper.Timestamp();
                   user.modifiedAt = user.createdAt;
 
                   db.collection('users').insertOne(user, (err, result) => {
-                        if(err){
+                        if(err)
                               return next(new errors.InternalError(err))
-                        }
-                        if(!result){
-                              return next(new errors.NotFoundError('1: Error whilst saving'));
-                        }
+                        if(!result)
+                              return next(new errors.ResourceNotFoundError('1: Error whilst saving'));
+
                         res.send( 200, 'Registration successful');
-                        requestEmailVerification(result.ops[0]);
+
+                        let token = md_auth.createVerificationToken(result.ops[0]);
+                        let template = emailservice.Templates.EmailConfirmation[result.ops[0].language];
+                        template.content = template.content.replace('#token', token);
+                  
+                        emailservice.sendEmail(user.email, template);
+
                         return next();
                   });
             }).catch(err => {
@@ -61,8 +71,6 @@ function signUpUser(req, res, next){
   
 function logInUser(req, res, next){
       
-      //TODO: Check if ip from req = to ip from token
-
       let params = sanitize(req.body);
   
       if(params.email != null && params.password != null){
@@ -75,12 +83,11 @@ function logInUser(req, res, next){
                   return next(new errors.InvalidContentError('2: Password not valid'))
 
             db.collection('users').findOne({email: params.email.toLowerCase()}, (err, user) => {
-                  console.log(user)
                   if(err){
                         return next(new errors.InternalError(err))
                   }
                   if(!user){
-                        return next(new errors.NotFoundError('1: Account doesnt exist'));
+                        return next(new errors.ResourceNotFoundError('Account doesnt exist'));
                   }
                   if(user.status != 'in progress' && user.status != 'complete'){
                         return next(new errors.NotAuthorizedError('Please confirm your email'));
@@ -90,9 +97,10 @@ function logInUser(req, res, next){
                         if(match){
                               //Devolver datos usuario logeado
                               res.send( 200, {user: {name: user.name, surname: user.surname, email: user.email}, token: md_auth.createToken(user) });
+                              return next();
                         }
                         else{
-                              return next(new errors.NotFoundError('2: Wrong password'));
+                              return next(new errors.InvalidContentError('Wrong password'));
                         }
                   }).catch(err => {
                         return next(new errors.InternalError(err));
@@ -104,20 +112,8 @@ function logInUser(req, res, next){
       }
 }
 
-function requestEmailVerification(user){
-
-      let token = md_auth.createVerificationToken(user);
-      let template = emailservice.Templates.EmailConfirmation;
-      template.content = template.content.replace('#token', token)
-
-      emailservice.sendEmail(user.email, template)
-            
-}
-
 function verifyEmail(req, res, next){
      
-      console.log(req.headers['user-agent'])
-
       let user = md_auth.ensureVerificationToken(req.query.id);
 
       if(user != false){
@@ -137,9 +133,78 @@ function tokenInfo(req, res, next){
       next();
 }
 
+function requestPasswordReset(req, res, next){
+      
+      let params = sanitize(req.body);
+
+      db.collection('users').findOne({email: params.email},{projection: {name: 1, surname: 1, email:1, language: 1, modifiedAt: 1}}, (err, user) => {
+            console.log(err)
+            console.log(user)
+            
+            if(err)
+                  return next(new errors.InternalError(err))
+            if(!user)
+                  return next(new errors.ResourceNotFoundError('Account does not exist'));
+            
+            let fullname = user.name + ' ' + user.surname;
+            if(fullname.localeCompare(params.fullname) == 0){
+                  let token = md_auth.createVerificationToken(user);
+                  let template = emailservice.Templates.PasswordResetRequest[user.language];
+                  
+                  template.content = template.content.replace('#token', token);
+                  emailservice.sendEmail(user.email, template);
+
+                  res.send( 200, 'Password request successful');
+                  return next();
+            }
+            else
+                  return next(new errors.InvalidContentError('Data and account does not match'));
+      });      
+}
+
+function passwordReset(req, res, next){
+      
+      let params = sanitize(req.body);
+
+      let usertoken = md_auth.ensureVerificationToken(params.token);
+      if(usertoken == null)
+            return next(new errors.NotAuthorizedError('1: Invalid token'));
+
+      //Check if it is a valid password
+      if(!passwordPattern.test(params.password))
+            return next(new errors.InvalidContentError('2: Password not valid'))
+
+      //Hash password and update password
+      argon2.hash(params.password).then(hash => {
+            db.collection('users').findOne({email: usertoken.email},(err, user)=>{
+                  if(err)
+                        return next(new errors.InternalError(err))
+                  if(!user)
+                        return next(new errors.ResourceNotFoundError('Account does not exist'));
+
+                  if(user.modifiedAt == usertoken.modifiedAt)
+                        db.collection('users').findOneAndUpdate({_id: user._id}, {$set: {password: hash, modifiedAt: dbhelper.Timestamp()}}, (err, result) => {
+                              if(err)
+                                    return next(new errors.InternalError(err))
+                              if(result.value == null)
+                                    return next(new errors.ResourceNotFoundError('Account does not exist'));
+                              
+                              res.send( 200, 'Password changed successfully');
+                              return next();
+                        })
+                  else
+                        return next(new errors.NotAuthorizedError('Invalid token'));
+            });
+      }).catch(err => {
+            return next(new errors.InternalError(err));
+      });
+}
+
   module.exports = {
       signUpUser,
       logInUser,
       verifyEmail,
-      tokenInfo
+      tokenInfo,
+      requestPasswordReset,
+      passwordReset
   };

@@ -18,7 +18,7 @@ function serviceAuth(){
 }
 
 function sendEmail(toEmail, template){
-      
+
       let email = {
             from: 'marcvimu2@gmail.com',
             to: toEmail,
@@ -39,13 +39,31 @@ function sendEmail(toEmail, template){
  ** Templates
  */
 
- const templateEmailConfirmation = {
-      'subject': 'Confirm your account',
-      'content': '<a href="' + url + 'auth/log-in?id=#token">Click here to confirm your email</a>'
+const EmailConfirmation = {
+      'en': {
+            'subject': 'Confirm your account',
+            'content': '<a href="' + url + 'auth/log-in?id=#token">Click here to confirm your email</a>'
+      },
+      'es': {
+            'subject': 'Confirm your account',
+            'content': '<a href="' + url + 'auth/log-in?id=#token">Click here to confirm your email</a>'
+      }
+}
+
+const PasswordResetRequest = {
+      'en': {
+            'subject': 'Recover your account',
+            'content': '<a href="' + url + 'auth/password-reset?id=#token">Click here to recover your account</a>'
+      },
+      'es': {
+            'subject': 'Recover your account',
+            'content': '<a href="' + url + 'auth/password-reset?id=#token">Click here to recover your account</a>'
+      }
 }
 
 const Templates = Object.freeze({
-      'EmailConfirmation': templateEmailConfirmation
+      'EmailConfirmation': EmailConfirmation,
+      'PasswordResetRequest': PasswordResetRequest
 });
 
 module.exports = {
