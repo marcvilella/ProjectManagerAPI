@@ -37,7 +37,8 @@ const server = restify.createServer({
  */
 const cors = corsMiddleware({
   preflightMaxAge: 5, //Optional
-  origins: ['http://localhost:4200'],
+  // origins: ['http://localhost:4200', 'http://192.168.1.4:4200'],
+  origins: ['*'],
   allowHeaders: ['Authorization'],
   exposeHeaders: ['Authorization-Expiry']
 })
@@ -51,7 +52,6 @@ const cors = corsMiddleware({
  server.use(restify.plugins.acceptParser(server.acceptable));
  server.use(restify.plugins.queryParser());
  server.use(restify.plugins.fullResponse());
-
 
  /**
    * Start Server, Connect to DB & Require Routes

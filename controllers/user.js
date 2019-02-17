@@ -46,7 +46,7 @@ function signUpUser(req, res, next){
 
                   db.collection('users').insertOne(user, (err, result) => {
                         if(err)
-                              return next(new errors.InternalError(err))
+                              return next(new errors.UnauthorizedError(err))
                         if(!result)
                               return next(new errors.ResourceNotFoundError('1: Error whilst saving'));
 
@@ -112,19 +112,32 @@ function logInUser(req, res, next){
       }
 }
 
+function logOutUser(req, res, next){
+      
+      console.log(req)
+      let params = sanitize(req.body);
+  
+      //TODO: Crear sesion en log in y borrarla
+
+      res.send(200, 'OK')
+      next();
+}
+
 function verifyEmail(req, res, next){
-     
-      let user = md_auth.ensureVerificationToken(req.query.id);
+
+      let user = md_auth.ensureVerificationToken(req.query.code);
 
       if(user != false){
-            db.collection('users').findOneAndUpdate({email: user.email, created_at: user.created}, {status: 'in progress'}, (err, result) => {
+            db.collection('users').findOneAndUpdate({email: user.email, created_at: user.created}, {$set: {status: 'in progress'}}, (err, result) => {
                   if(err){
                         return next(new errors.InternalError(err));
                   }
-                  res.send( 200, {result: "Verification successful" });
+                  res.send( 200, "Verification successful");
             });
+            return next();            
       }
-      return next(new errors.InvalidContentError('Wrong token'));
+      else
+            return next(new errors.InvalidContentError('Wrong token'));
 
 }
 
@@ -203,6 +216,7 @@ function passwordReset(req, res, next){
   module.exports = {
       signUpUser,
       logInUser,
+      logOutUser,
       verifyEmail,
       tokenInfo,
       requestPasswordReset,

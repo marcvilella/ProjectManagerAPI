@@ -25,8 +25,9 @@ function createToken (user){
 };
 
 function ensureAuth (req, res, next){
-      console.log(req)
-      winston.log('info', req);
+      console.log(req.headers)
+      console.log(req.headers.authorization)
+      console.log(req.body)
       if(!req.headers.authorization){
           return next(new errors.NetworkAuthenticationRequiredError('Authentication header needed'));
       }
@@ -55,6 +56,7 @@ function createVerificationToken (user){
 function ensureVerificationToken (token){  
 
       try{ 
+            token = token.replace(/['"']+/g, '');
             return jwt.verify(token, emailVer_cert_public);
       }
       catch{
