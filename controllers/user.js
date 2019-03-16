@@ -19,6 +19,16 @@ const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[_!@#\$%\^&\*])(
 
 //#endregion
 
+function getUsers(req, res, next){
+      db.collection('users').find({}, { projection: { _id: 1, name: 1 } }).toArray(function(err,result) {
+            if(err) console.log(err)
+            else {
+                  res.send( 200, result);
+                  next();
+            }
+      });
+}
+
 function signUpUser(req, res, next){
       
       let params = sanitize(req.body);
@@ -34,7 +44,7 @@ function signUpUser(req, res, next){
 
             //Hash password and save data
             argon2.hash(params.password).then(hash => {
-                  let user = modelUser.User
+                  let user = modelUser.User;
                   user.email = params.email;
                   user.name = params.name;
                   user.surname = params.surname;
@@ -213,12 +223,14 @@ function passwordReset(req, res, next){
       });
 }
 
-  module.exports = {
+module.exports = {
       signUpUser,
       logInUser,
       logOutUser,
       verifyEmail,
       tokenInfo,
       requestPasswordReset,
-      passwordReset
-  };
+      passwordReset,
+
+      getUsers
+};

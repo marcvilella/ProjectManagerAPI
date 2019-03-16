@@ -46,12 +46,25 @@ const cors = corsMiddleware({
 /**
   * Middleware
   * */
- server.pre(cors.preflight)
- server.use(cors.actual)
- server.use(restify.plugins.jsonBodyParser());
- server.use(restify.plugins.acceptParser(server.acceptable));
- server.use(restify.plugins.queryParser());
- server.use(restify.plugins.fullResponse());
+server.pre(cors.preflight)
+server.use(cors.actual)
+server.use(restify.plugins.jsonBodyParser());
+server.use(restify.plugins.acceptParser(server.acceptable));
+server.use(restify.plugins.queryParser());
+server.use(restify.plugins.fullResponse());
+
+/**
+   * Socket.io
+   * */
+const io  = require('socket.io')(server.server);
+io.use((socket, next) => {
+  let token = socket.handshake.query.token;
+  if (require('./services/jwt').ensureAuthForConnection(token)) {
+    return next();
+  }
+  return next(new Error('authentication error'));
+});
+
 
  /**
    * Start Server, Connect to DB & Require Routes
@@ -67,13 +80,31 @@ server.listen(config.development.port, () => {
     }
 
     //Create BBDDs if they don't exist and creat it
-    let userModel = require('./models/user'); 
+    // let userModel = require('./models/user'); 
     //client.db('ProjectManager').createCollection('users', {validator: userModel.UserValidator}, (err) => { if(err)console.log(err)});
     //client.db('ProjectManager').collection('users').createIndex( { email: 1 }, { unique: true }, (err) => {if(err)console.log(err)} );
+    // let us = client.db('ProjectManager').collection('users').findOne({}, { projection: { _id: 1 } }).then(function(result) {
+    //   let board = require('./models/board').Board;
+    //   board.name = 'Test';
+    //   board.users.push(result._id);
+    //   client.db('ProjectManager').collection('boards').insertOne(board).then(function(resStore){
+    //     let boardStored = client.db('ProjectManager').collection('boards').findOne({}).then(function(resultBoard){
+    //       console.log(resultBoard);
+    //     });
+    //   });
+    // });
 
     module.exports = client.db('ProjectManager');
 
     require('./routes/user')(server);
+    require('./routes/board')(io.sockets);
+    // io.sockets.on
+    // io.sockets.on('connection', function(socket) {
+    //   console.log('new user')
+    //   socket.on('join', function(room) {
+    //     console.log('new user')
+    //   });
+    // });
 
     console.log(`Server is listening on port ${config.development.port}`);
     winston.log('info', 'SERVER INITIALIZATION - OK \n\tListening to port ' + config.development.port);

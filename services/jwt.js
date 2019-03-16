@@ -13,6 +13,7 @@ const auth_cert_public = fs.readFileSync('PM_API_public_key.pem');
 const emailVer_cert_priv = fs.readFileSync('PM_API_private_key.pem');
 const emailVer_cert_public = fs.readFileSync('PM_API_public_key.pem');
 
+//JSON
 
 function createToken (user){
       return jwt.sign({
@@ -64,9 +65,25 @@ function ensureVerificationToken (token){
       }
 };
 
+//SocketIO
+
+function ensureAuthForConnection (token){
+  
+      try{
+            jwt.verify(token, auth_cert_public);
+            return true;
+      }
+      catch{
+            return false;
+      }
+
+};
+
 module.exports = {
       createToken,
       ensureAuth,
       createVerificationToken,
-      ensureVerificationToken
+      ensureVerificationToken,
+
+      ensureAuthForConnection
 }
