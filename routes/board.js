@@ -13,6 +13,9 @@ module.exports = function(sockets){
             socket.on('[Board] Get Boards', function() {  
                   BoardController.getBoards(socket)
             }),
+            socket.on('[Board] Get Board', function(id) {  
+                  BoardController.getBoard(socket, id)
+            }),
             socket.on('[Board] Add Board', function(params){
                   BoardController.addBoard(socket, params)
             })

@@ -21,8 +21,7 @@ function joinBoard(socket){
 }
 
 function getBoards(socket){
-      socket.emit('test', 'Prueba')
-      db.collection('boards').find({}, { projection: { _id: 1, name: 1 } }).toArray(function(err,result) {
+      db.collection('boards').find({}, { projection: { _id: 1, name: 1 } }).toArray(function(err, result) {
             if(err) console.log(err)
             else {
                   socket.emit('[Board] Get Boards Success', result);
@@ -30,16 +29,28 @@ function getBoards(socket){
       });
 }
 
+function getBoard(socket, id){
+      if(id == 'NaN'){
+            db.collection('boards').findOne({}, (err, result) => {
+                  if(err) console.log(err)
+                  else {
+                        socket.emit('[Board] Get Board Success', result);
+                  }
+            });
+      }
+      else{
+            db.collection('boards').findOne({_id: ObjectId(id)}, (err, result) => {
+                  if(err) console.log(err)
+                  else {
+                        socket.emit('[Board] Get Board Success', result);
+                  }
+            });
+      }
+}
+
 function addBoard(socket, parameters){
       
       let params = sanitize(parameters);
-
-      // db.collection('users').findOne({}, { projection: { _id: 1 } }).then(function(result) {
-      //       console.log(result._id)
-      //       let board2 = new modelBoard.Board();
-      //       board2.settings.users.push(result._id)
-      //       console.log(board2)
-      // });
 
       let board = new modelBoard.Board();
       board.name = params.name;
@@ -55,8 +66,18 @@ function addBoard(socket, parameters){
             if(err) console.log(err) 
             else {
                   socket.emit('[Board] Add Board Success', result.ops[0]);
+                  db.collection('users').find
             }
       })
+}
+
+function addCardList(socket, parameters){
+
+      let params = sanitize(parameters);
+
+      let list = new modelBoard.CardList();
+      list.na
+
 }
     
     
@@ -66,5 +87,7 @@ function addBoard(socket, parameters){
 module.exports = {
       joinBoard,
       getBoards,
-      addBoard
+      getBoard,
+      addBoard,
+      addCardList
 };

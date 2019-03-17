@@ -44,7 +44,7 @@ function signUpUser(req, res, next){
 
             //Hash password and save data
             argon2.hash(params.password).then(hash => {
-                  let user = modelUser.User;
+                  let user = new modelUser.User();
                   user.email = params.email;
                   user.name = params.name;
                   user.surname = params.surname;

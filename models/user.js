@@ -47,18 +47,21 @@ const UserValidator = {
       }
 }
 
-const User = {
-      name: String,
-      surname: String,
-      email: String,
-      password: String,
-      company: String,
-      language: 'english',
-      role: 'ROLE_USER',
-      status: 'pending',
-      image: 'null',
-      createdAt: Date,
-      modifiedAt: Date
+class User {
+      constructor() {
+            this.name = String;
+            this.surname= String;
+            this.email = String,
+            this.password = String,
+            this.company = String,
+            this.language = 'english',
+            this.role = 'ROLE_USER',
+            this.status = 'pending',
+            this.image = 'null',
+            this.boards = [];
+            this.createdAt = Date,
+            this.modifiedAt = Date
+      }
 }
 
 module.exports = { UserValidator, User }
