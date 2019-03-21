@@ -79,11 +79,24 @@ function ensureAuthForConnection (token){
 
 };
 
+function IdForConnection (token){
+  
+      try{
+            let payload = jwt.verify(token, auth_cert_public);
+            return payload.sub;
+      }
+      catch{
+            return false;
+      }
+
+};
+
 module.exports = {
       createToken,
       ensureAuth,
       createVerificationToken,
       ensureVerificationToken,
 
-      ensureAuthForConnection
+      ensureAuthForConnection,
+      IdForConnection
 }

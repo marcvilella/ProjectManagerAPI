@@ -64,6 +64,9 @@ io.use((socket, next) => {
   }
   return next(new Error('authentication error'));
 });
+io.engine.generateId = (req) => {
+  return require('./services/jwt').IdForConnection(req._query.token);
+}
 
 
  /**
@@ -98,13 +101,6 @@ server.listen(config.development.port, () => {
 
     require('./routes/user')(server);
     require('./routes/board')(io.sockets);
-    // io.sockets.on
-    // io.sockets.on('connection', function(socket) {
-    //   console.log('new user')
-    //   socket.on('join', function(room) {
-    //     console.log('new user')
-    //   });
-    // });
 
     console.log(`Server is listening on port ${config.development.port}`);
     winston.log('info', 'SERVER INITIALIZATION - OK \n\tListening to port ' + config.development.port);

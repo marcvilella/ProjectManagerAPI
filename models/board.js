@@ -4,12 +4,14 @@ class BoardSettings {
             this.mode = String;
             this.colorLight = String;
             this.colorDark = String;
+            this.starred = Boolean;
             this.users = [];
       }
 }
 
 class Board {
       constructor() {
+            this.id = Number;
             this.name = String;
             this.lists = [];
             this.settings = new BoardSettings();

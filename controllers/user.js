@@ -8,6 +8,7 @@ const argon2 = require('argon2');
 const sanitize = require('mongo-sanitize');
 
 const db = require('../index');
+const ObjectId = require('mongodb').ObjectID;
 const dbhelper = require('../services/db.helper')
 
 const md_auth = require('../services/jwt')
@@ -19,15 +20,7 @@ const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[_!@#\$%\^&\*])(
 
 //#endregion
 
-function getUsers(req, res, next){
-      db.collection('users').find({}, { projection: { _id: 1, name: 1 } }).toArray(function(err,result) {
-            if(err) console.log(err)
-            else {
-                  res.send( 200, result);
-                  next();
-            }
-      });
-}
+//#region HTTP
 
 function signUpUser(req, res, next){
       
@@ -223,6 +216,30 @@ function passwordReset(req, res, next){
       });
 }
 
+//#endregion
+
+//#region Socket.Io
+
+function getCurrentUser(socket){
+      db.collection('users').findOne({_id: ObjectId(socket.id)}, {projection: {password: 0, status: 0, image: 0, createdAt: 0, modifiedAt: 0}}, (err,result) => {
+            if(err) console.log(err)
+            else {
+                  socket.emit('[User] Get Current User Success', result);
+            }
+      });
+}
+
+function getUsers(socket, parameters){
+      db.collection('users').find({}, { projection: { _id: 1, name: 1 } }).toArray(function(err,result) {
+            if(err) console.log(err)
+            else {
+                  socket.emit('[User] Get Users Success', result);
+            }
+      });
+}
+
+//#endregion
+
 module.exports = {
       signUpUser,
       logInUser,
@@ -232,5 +249,6 @@ module.exports = {
       requestPasswordReset,
       passwordReset,
 
+      getCurrentUser,
       getUsers
 };

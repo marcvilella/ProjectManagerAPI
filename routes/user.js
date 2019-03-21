@@ -10,7 +10,5 @@ module.exports = function(server){
       server.get({name: 'User - Verify Email', path: '/api/auth/verifyemail'}, (req, res, next) => UserController.verifyEmail(req, res, next)),
       server.get({name: 'User - Return Token Info', path: '/api/auth/tokeninfo'}, md_auth.ensureAuth, (req, res, next) => UserController.tokenInfo(req, res, next)),
       server.post({name: 'User - Password Reset Request', path: '/api/auth/passwordresetrequest'}, (req, res, next) => UserController.requestPasswordReset(req, res, next)),
-      server.post({name: 'User - Password Reset', path: '/api/auth/passwordreset'}, (req, res, next) => UserController.passwordReset(req, res, next)),
-
-      server.get({name: 'User - Return Token Info', path: '/api/auth/getUsers'}, (req, res, next) => UserController.getUsers(req, res, next))
+      server.post({name: 'User - Password Reset', path: '/api/auth/passwordreset'}, (req, res, next) => UserController.passwordReset(req, res, next))
 };
