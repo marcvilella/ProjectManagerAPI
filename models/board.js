@@ -5,6 +5,7 @@ class BoardSettings {
             this.colorLight = String;
             this.colorDark = String;
             this.starred = Boolean;
+            this.archiced = Boolean;
             this.users = [];
       }
 }
@@ -25,17 +26,23 @@ class CardList {
       constructor() {
             this.name = String;
             this.cards = [];
+            this.priority = Number;
             this.createdAt = Date;
             this.modifiedAt = Date;
+            this.version = Number;
+            this.boardId = Number;
       }
 }
 
-class Card {
+class CardItem {
       constructor() {
             this.name = String;
+            this.priority = Number;
             this.createdAt = Date;
             this.modifiedAt = Date;
+            this.version = Number;
+            this.cardListId = Number;
       }
 }
 
-module.exports = { Board, BoardSettings, CardList, Card }
+module.exports = { Board, BoardSettings, CardList, CardItem }
