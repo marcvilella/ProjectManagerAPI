@@ -6,10 +6,15 @@ const UserController = require('../controllers/user');
 //TODO: Add JSON support
 module.exports = function(sockets){
       sockets.on('connection', function(socket){
-            console.log('new user')
-            socket.on('join', function(room) {  
-                  socket.join(room);
-                  console.log(socket.id + ' has joined ' + room)
+            console.log('User Socket: ' + socket.id);
+            socket.on('join', function(boardId) {  
+                  const roomKey = Object.keys(socket.rooms).find(m => m.startsWith('board-'));
+                  if (roomKey !== undefined) {
+                        socket.leave(roomKey)
+                        console.log(socket.id + ' has leaved ' + roomKey)
+                  }
+                  socket.join('board-' + boardId);
+                  console.log(socket.id + ' has joined board-' + boardId)
             }),
             socket.on('[Board] Get Boards', function() {  
                   BoardController.getBoards(socket)
@@ -36,8 +41,8 @@ module.exports = function(sockets){
             socket.on('[Board] Add Card List', function(params){
                   BoardController.addCardList(socket, params)
             }),
-            socket.on('[Board] Update Card List Priority', function(params){
-                  BoardController.updateCardListPriority(socket, params)
+            socket.on('[Board] Update Card List Position', function(params){
+                  BoardController.updateCardListPosition(socket, params)
             }),
             socket.on('[Board] Sort Card List', function(params){
                   BoardController.sortCardList(socket, params)
@@ -53,8 +58,8 @@ module.exports = function(sockets){
             socket.on('[Board] Add Card Item', function(params){
                   BoardController.addCardItem(socket, params)
             }),
-            socket.on('[Board] Update Card Item Priority', function(params){
-                  BoardController.updateCardItemPriority(socket, params)
+            socket.on('[Board] Update Card Item Position', function(params){
+                  BoardController.updateCardItemPosition(socket, params)
             }),
             
 

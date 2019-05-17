@@ -26,7 +26,7 @@ class CardList {
       constructor() {
             this.name = String;
             this.cards = [];
-            this.priority = Number;
+            this.position = Number;
             this.createdAt = Date;
             this.modifiedAt = Date;
             this.version = Number;
@@ -37,11 +37,13 @@ class CardList {
 class CardItem {
       constructor() {
             this.name = String;
-            this.priority = Number;
+            this.position = Number;
             this.createdAt = Date;
             this.modifiedAt = Date;
             this.version = Number;
             this.cardListId = Number;
+
+            this.priority = Number;
       }
 }
 

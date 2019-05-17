@@ -82,26 +82,11 @@ server.listen(config.development.port, () => {
       process.exit(1);
     }
 
-    //Create BBDDs if they don't exist and creat it
-    // let userModel = require('./models/user'); 
-    //client.db('ProjectManager').createCollection('users', {validator: userModel.UserValidator}, (err) => { if(err)console.log(err)});
-    //client.db('ProjectManager').collection('users').createIndex( { email: 1 }, { unique: true }, (err) => {if(err)console.log(err)} );
-    // let us = client.db('ProjectManager').collection('users').findOne({}, { projection: { _id: 1 } }).then(function(result) {
-    //   let board = require('./models/board').Board;
-    //   board.name = 'Test';
-    //   board.users.push(result._id);
-    //   client.db('ProjectManager').collection('boards').insertOne(board).then(function(resStore){
-    //     let boardStored = client.db('ProjectManager').collection('boards').findOne({}).then(function(resultBoard){
-    //       console.log(resultBoard);
-    //     });
-    //   });
-    // });
-
     module.exports = client.db('ProjectManager');
 
     require('./routes/user')(server);
     require('./routes/board')(io.sockets);
-
+// io.sockets.on('connection', function(socket){socket.rooms})
     console.log(`Server is listening on port ${config.development.port}`);
     winston.log('info', 'SERVER INITIALIZATION - OK \n\tListening to port ' + config.development.port);
     

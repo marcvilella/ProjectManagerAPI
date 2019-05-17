@@ -75,7 +75,8 @@ function signUpUser(req, res, next){
 function logInUser(req, res, next){
       
       let params = sanitize(req.body);
-  
+      console.log('Log in - User: ' + params.email)
+
       if(params.email != null && params.password != null){
 
             //Check if it a valid email

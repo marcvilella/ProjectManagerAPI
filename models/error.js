@@ -47,11 +47,11 @@ const boardErrors = Object.freeze({
       'FindingBoard': {'name': 'Find', 'message': 'Board'},
       'DeletingBoard': {'name': 'Delete', 'message': 'Board'},
 
-      'UpdatingCardListPriority': {'name': 'Update', 'message': 'Card List Priority', 'backupData': {'action': '[Board] Update Card List Priority', 'params': ''}},
+      'UpdatingCardListPosition': {'name': 'Update', 'message': 'Card List Position', 'backupData': {'action': '[Board] Update Card List Position', 'params': ''}},
       'SortingCardList': {'name': 'Sort', 'message': 'Card List'},
       'DeletingCardList': {'name': 'Delete', 'message': 'Card List', 'backupData': {'action': '[Board] Delete Card List', 'params': ''}},
 
-      'UpdatingCardItemPriority': {'name': 'Update', 'message': 'Card Item Priority', 'backupData': {'action': '[Board] Update Card Item Priority', 'params': ''}},
+      'UpdatingCardItemPosition': {'name': 'Update', 'message': 'Card Item Position', 'backupData': {'action': '[Board] Update Card Item Position', 'params': ''}},
       'DeletingCardItem': {'name': 'Delete', 'message': 'Card Item', 'backupData': {'action': '[Board] Delete Card Item', 'params': ''}},
 })
 

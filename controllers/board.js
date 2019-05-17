@@ -4,6 +4,7 @@ const db = require('../index');
 const ObjectId = require('mongodb').ObjectID;
 const dbhelper = require('../services/db.helper');
 const sanitize = require('mongo-sanitize');
+const async = require('async');
 
 const modelBoard = require('../models/board');
 const error = require('../models/error');
@@ -233,7 +234,7 @@ function addCardList(socket, parameters){
 
       let list = new modelBoard.CardList();
       list.name = params.name;
-      list.priority = params.priority;
+      list.position = params.position;
       list.createdAt = dbhelper.Timestamp();
       list.modifiedAt = list.createdAt;
       list.version = 1;
@@ -253,17 +254,27 @@ function addCardList(socket, parameters){
 
 }
 
-function updateCardListPriority(socket, parameters){
+function updateCardListPosition(socket, parameters){
 
       let params = sanitize(parameters);
 
-      params.cardLists.forEach(cardList => {
-            db.collection('board-lists').updateOne( {_id: ObjectId(cardList.id)}, { $set: { 'priority': cardList.priority }}, (err, result) => {
-                  if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardListPriority, params);
-            })
-      })
-
-      socket.emit('[Board] Update Card List Priority Success', 0);
+      async.each(params.cardLists, function iteratee(cardList, callback) {
+            db.collection('board-lists').updateOne( {_id: ObjectId(cardList._id)}, { $set: { 'position': cardList.position }}, (err, result) => {
+                  if (err) {
+                        callback(err);
+                  } else {
+                        callback();
+                  }
+            })}, function(err) {
+                  err = 2;
+                  if(err) {
+                        error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardListPosition, params);
+                        return;
+                  } else {
+                        socket.emit('[Board] Update Card List Position Success', parameters.cardLists); 
+                  }
+            }
+      );
 }
 
 function sortCardList(socket, parameters) {
@@ -274,7 +285,7 @@ function sortCardList(socket, parameters) {
       switch (params.mode) {
             // Alphabetically
             case 0:
-            db.collection('board-cards').find({cardListId: ObjectId(params.id)}, {projection: {name: 1, priority: 1}}).toArray(function(err, resItems) {
+            db.collection('board-cards').find({cardListId: ObjectId(params.id)}, {projection: {name: 1, position: 1}}).toArray(function(err, resItems) {
                   if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.SortingCardList);
                   else {
                         resItems = resItems.sort((obj1, obj2) => {
@@ -288,8 +299,8 @@ function sortCardList(socket, parameters) {
                         });
                         
                         resItems.forEach(cardItem => {
-                              cardItem.priority = counter;
-                              db.collection('board-cards').updateOne( {_id: cardItem._id}, { $set: { 'priority': cardItem.priority}}, (err, result) => {
+                              cardItem.position = counter;
+                              db.collection('board-cards').updateOne( {_id: cardItem._id}, { $set: { 'position': cardItem.position}}, (err, result) => {
                                     if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.SortingCardList);
                               })
                               counter++;
@@ -301,7 +312,7 @@ function sortCardList(socket, parameters) {
             break;
             // CreatedAt
             case 1:
-            db.collection('board-cards').find({cardListId: ObjectId(params.id)}, {projection: {createdAt: 1, priority: 1}}).toArray(function(err, resItems) {
+            db.collection('board-cards').find({cardListId: ObjectId(params.id)}, {projection: {createdAt: 1, position: 1}}).toArray(function(err, resItems) {
                   if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.SortingCardList);
                   else {
                         resItems = resItems.sort((obj1, obj2) => {
@@ -315,8 +326,8 @@ function sortCardList(socket, parameters) {
                         });
       
                         resItems.forEach(cardItem => {
-                              cardItem.priority = counter;
-                              db.collection('board-cards').updateOne( {_id: cardItem._id}, { $set: { 'priority': cardItem.priority}}, (err, result) => {
+                              cardItem.position = counter;
+                              db.collection('board-cards').updateOne( {_id: cardItem._id}, { $set: { 'position': cardItem.position}}, (err, result) => {
                                     if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.SortingCardList);
                               })
                               counter++;
@@ -327,7 +338,7 @@ function sortCardList(socket, parameters) {
             });
             break;
             case 2:
-            db.collection('board-cards').find({cardListId: ObjectId(params.id)}, {projection: {createdAt: 1, priority: 1}}).toArray(function(err, resItems) {
+            db.collection('board-cards').find({cardListId: ObjectId(params.id)}, {projection: {createdAt: 1, position: 1}}).toArray(function(err, resItems) {
                   if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.SortingCardList);
                   else {
                         resItems = resItems.sort((obj1, obj2) => {
@@ -341,8 +352,8 @@ function sortCardList(socket, parameters) {
                         });
       
                         resItems.forEach(cardItem => {
-                              cardItem.priority = counter;
-                              db.collection('board-cards').updateOne( {_id: cardItem._id}, { $set: { 'priority': cardItem.priority}}, (err, result) => {
+                              cardItem.position = counter;
+                              db.collection('board-cards').updateOne( {_id: cardItem._id}, { $set: { 'position': cardItem.position}}, (err, result) => {
                                     if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.SortingCardList);
                               })
                               counter++;
@@ -354,7 +365,7 @@ function sortCardList(socket, parameters) {
             break;
             // UpdatedAt
             case 3:
-            db.collection('board-cards').find({cardListId: ObjectId(params.id)}, {projection: {modifiedAt: 1, priority: 1}}).toArray(function(err, resItems) {
+            db.collection('board-cards').find({cardListId: ObjectId(params.id)}, {projection: {modifiedAt: 1, position: 1}}).toArray(function(err, resItems) {
                   if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.SortingCardList);
                   else {
                         resItems = resItems.sort((obj1, obj2) => {
@@ -368,8 +379,8 @@ function sortCardList(socket, parameters) {
                         });
       
                         resItems.forEach(cardItem => {
-                              cardItem.priority = counter;
-                              db.collection('board-cards').updateOne( {_id: cardItem._id}, { $set: { 'priority': cardItem.priority}}, (err, result) => {
+                              cardItem.position = counter;
+                              db.collection('board-cards').updateOne( {_id: cardItem._id}, { $set: { 'position': cardItem.position}}, (err, result) => {
                                     if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.SortingCardList);
                               })
                               counter++;
@@ -380,7 +391,7 @@ function sortCardList(socket, parameters) {
             });
             break;
             case 4:
-            db.collection('board-cards').find({cardListId: ObjectId(params.id)}, {projection: {modifiedAt: 1, priority: 1}}).toArray(function(err, resItems) {
+            db.collection('board-cards').find({cardListId: ObjectId(params.id)}, {projection: {modifiedAt: 1, position: 1}}).toArray(function(err, resItems) {
                   if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.SortingCardList);
                   else {
                         resItems = resItems.sort((obj1, obj2) => {
@@ -394,8 +405,8 @@ function sortCardList(socket, parameters) {
                         });
       
                         resItems.forEach(cardItem => {
-                              cardItem.priority = counter;
-                              db.collection('board-cards').updateOne( {_id: cardItem._id}, { $set: { 'priority': cardItem.priority}}, (err, result) => {
+                              cardItem.position = counter;
+                              db.collection('board-cards').updateOne( {_id: cardItem._id}, { $set: { 'position': cardItem.position}}, (err, result) => {
                                     if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.SortingCardList);
                               })
                               counter++;
@@ -453,11 +464,12 @@ function addCardItem(socket, parameters){
 
       let card = new modelBoard.CardItem();
       card.name = params.name;
-      card.priority = params.priority;
+      card.position = params.position;
       card.createdAt = dbhelper.Timestamp();
       card.modifiedAt = card.createdAt;
       card.version = 1;
       card.cardListId = ObjectId(params.id);
+      card.priority = 0;
       
       db.collection('board-cards').insertOne(card, (err, result) => {
             if(err) console.log(err)
@@ -473,34 +485,34 @@ function addCardItem(socket, parameters){
 
 }
 
-function updateCardItemPriority(socket, parameters){
+function updateCardItemPosition(socket, parameters){
 
       const params = sanitize(parameters);
       const cardListId = ObjectId(params.to.id);
       
       params.to.carditems.forEach(cardItem => {
-            db.collection('board-cards').updateOne( {_id: ObjectId(cardItem.id)}, { $set: { 'priority': cardItem.priority, 'cardListId': cardListId}}, (err, result) => {
-                  if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPriority, params);
+            db.collection('board-cards').updateOne( {_id: ObjectId(cardItem.id)}, { $set: { 'position': cardItem.position, 'cardListId': cardListId}}, (err, result) => {
+                  if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPosition, params);
             })
       })
 
       if(!isEmpty(params.changedId)) {
             db.collection('board-lists').updateOne( {_id: cardListId}, { $push: { 'cards': ObjectId(params.changedId) }}, (err, result) => {
-                  if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPriority, params);
+                  if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPosition, params);
             });
             
             db.collection('board-lists').updateOne( {_id: ObjectId(params.from.id)}, { $pull: { 'cards': ObjectId(params.changedId) }}, (err, result) => {
-                  if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPriority, params);
+                  if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPosition, params);
             });
 
             params.from.carditems.forEach(cardItem => {
-                  db.collection('board-cards').updateOne( {_id: ObjectId(cardItem.id)}, { $set: { 'priority': cardItem.priority }}, (err, result) => {
-                        if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPriority, params);
+                  db.collection('board-cards').updateOne( {_id: ObjectId(cardItem.id)}, { $set: { 'position': cardItem.position }}, (err, result) => {
+                        if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPosition, params);
                   })
             });
       }
       
-      socket.emit('[Board] Update Card Item Priority Success', 0);
+      socket.emit('[Board] Update Card Item Position Success', 0);
 }
 
 //#endregion
@@ -525,11 +537,11 @@ module.exports = {
 
       getCardLists,
       addCardList,
-      updateCardListPriority,
+      updateCardListPosition,
       sortCardList,
       deleteCardList,
 
       getCardItems,
       addCardItem,
-      updateCardItemPriority
+      updateCardItemPosition
 };
