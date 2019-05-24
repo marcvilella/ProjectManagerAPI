@@ -20,4 +20,9 @@ module.exports = {
 			uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/ProjectManager',
 		},
 	},
+
+	dir: {
+		avatars: 'C:\\Users\\marcv\\Documents\\APIs Projects\\ProjectManagerAPI\\files\\avatars\\',
+		attachments: 'C:\\Users\\marcv\\Documents\\APIs Projects\\ProjectManagerAPI\\files\\attachments\\'
+	}
 };

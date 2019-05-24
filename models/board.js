@@ -5,8 +5,9 @@ class BoardSettings {
             this.colorLight = String;
             this.colorDark = String;
             this.starred = Boolean;
-            this.archiced = Boolean;
+            this.archived = Boolean;
             this.users = [];
+            this.adminUsers = [];
       }
 }
 
@@ -24,6 +25,7 @@ class Board {
 
 class CardList {
       constructor() {
+            this.id = Number;
             this.name = String;
             this.cards = [];
             this.position = Number;
@@ -34,8 +36,17 @@ class CardList {
       }
 }
 
+class DueDate {
+      constructor() {
+            this.date = Date;
+            this.remindAt = Number;
+            this.done = Boolean;
+      }
+}
+
 class CardItem {
       constructor() {
+            this.id = Number;
             this.name = String;
             this.position = Number;
             this.createdAt = Date;
@@ -43,8 +54,58 @@ class CardItem {
             this.version = Number;
             this.cardListId = Number;
 
+            this.description = String;
+            this.users = [];
             this.priority = Number;
+            this.dueDate = new DueDate();
+            this.attachments = [];
+            this.checklists = [];
+            this.worksegments = [];
+            this.messages = [];
       }
 }
 
-module.exports = { Board, BoardSettings, CardList, CardItem }
+class Attachment {
+      constructor() {
+            this._id = Number;
+            this.name = String;
+            this.dataType = String;
+            this.userId = Number;
+            this.userName = String;
+            this.value = String;
+            this.date = Date;
+      }
+}
+
+class CheckList {
+      constructor() {
+            this._id = Number;
+            this.name = String;
+            this.checkitems = [];
+            this.hide = Boolean;
+      }
+}
+
+class CheckItem {
+      constructor() {
+            this._id = Number;
+            this.name = String;
+            this.checked = Boolean;
+      }
+}
+
+class Message {
+      constructor() {
+            this.id = Number;
+            this.userId = Number;
+            this.boardId = Number;
+            this.userName = String;
+            this.cardId = Number;
+            this.priority = Number;
+            this.date = Date;
+            this.text = String;
+            this.edited = Boolean;
+      }
+}
+
+module.exports = { Board, CardList, CardItem, DueDate, Attachment, CheckList, CheckItem, Message }

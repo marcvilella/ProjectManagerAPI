@@ -1,19 +1,22 @@
 'use strict'
 
-const db = require('../index');
 const ObjectId = require('mongodb').ObjectID;
-const dbhelper = require('../services/db.helper');
+const helper = require('../services/helper.service');
 const sanitize = require('mongo-sanitize');
+const fs = require('fs');
 const async = require('async');
 
-const modelBoard = require('../models/board');
+const db = require('../index');
+const config = require('../config');
+const MessageController = require('../controllers/message');
+const boardClass = require('../models/board');
 const error = require('../models/error');
 
 function joinBoard(socket){
       socket.join(room);
 }
 
-//#region Board
+// #region Board
 
 function getBoards(socket){
       db.collection('boards').find({ 'settings.users': ObjectId(socket.id) }, { projection: { _id: 1, name: 1, modifiedAt: 1, settings: 1 } }).toArray(function(err, result) {
@@ -54,7 +57,7 @@ function getBoard(socket, parameters){
                                           let cards = [];
                                           resList.map(list => list.cards).forEach(list => {
                                                 list.forEach(card => {
-                                                      if(!isEmpty(card))
+                                                      if(!helper.isEmpty(card))
                                                             cards.push(card)    
                                                 })
                                           })
@@ -63,8 +66,10 @@ function getBoard(socket, parameters){
                                                 return;
 
                                           db.collection('board-cards').find({_id: {$in: cards}}).toArray(function(err, resItems) {
-                                                if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.FindingBoard);
-                                                else {
+                                                if(err) {
+                                                      return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.FindingBoard);
+                                                } else {
+                                                      helper.convertToIds(resItems, 'users', false);
                                                       socket.emit('[Board] Get Card Items Success', resItems);
                                                 }
                                           });
@@ -81,22 +86,26 @@ function addBoard(socket, parameters){
       let params = sanitize(parameters);
       console.log(params)
 
-      let board = new modelBoard.Board();
+      let board = new boardClass.Board();
       board.name = params.name;
       board.settings.mode = params.settings.mode;
       board.settings.colorLight = params.settings.color.colorLight;
       board.settings.colorDark = params.settings.color.colorDark;
       params.settings.users.forEach(entry => board.settings.users.push(ObjectId(entry)));
-      board.createdAt = dbhelper.Timestamp();
+      board.settings.adminUsers.push(ObjectId(socket.id));
+      board.createdAt = helper.getTimestamp();
       board.modifiedAt = board.createdAt;
       board.version = 1;
 
       db.collection('boards').insertOne(board, (err, result) => {
             if(err) console.log(err)
             else {
-                  let newBoard = {
+                  const newBoard = {
                         _id: ObjectId(result.ops[0]._id),
-                        settings: { starred: false }
+                        settings: { 
+                              starred: false,
+                              admin: true
+                        }
                   }
 
                   db.collection('users').updateMany({_id: {$in: result.ops[0].settings.users}}, {$push: {boards: newBoard}}, (err, res) =>{
@@ -114,7 +123,7 @@ function updateBoard(socket, parameters){
       let params = sanitize(parameters);
 
       let updateQuery = {};
-      if(!isEmpty(params.name))
+      if(!helper.isEmpty(params.name))
             {updateQuery['name'] = params.name}
 
       db.collection('boards').updateOne( { _id: ObjectId(params.id) }, 
@@ -146,7 +155,6 @@ function updateBoardStarred(socket, parameters){
             else {
                   socket.emit('[Board] Update Board Starred Success', {_id: ObjectId(params.id), settings: {starred: params.starred}});
             }
-
       })
 }
 
@@ -167,7 +175,7 @@ function deleteBoard(socket, parameters){
                               let cards = [];
                               resList.map(list => list.cards).forEach(list => {
                                     list.forEach(card => {
-                                          if(!isEmpty(card))
+                                          if(!helper.isEmpty(card))
                                                 cards.push(card)    
                                     })
                               })
@@ -196,7 +204,7 @@ function deleteBoard(socket, parameters){
 
 //#endregion
 
-//#region Card List
+// #region Card List
 
 function getCardLists(socket, parameters){
 
@@ -210,7 +218,7 @@ function getCardLists(socket, parameters){
                   let cards = [];
                   resList.map(list => list.cards).forEach(list => {
                         list.forEach(card => {
-                              if(!isEmpty(card))
+                              if(!helper.isEmpty(card))
                                     cards.push(card)    
                         })
                   })
@@ -232,10 +240,10 @@ function addCardList(socket, parameters){
 
       let params = sanitize(parameters);
 
-      let list = new modelBoard.CardList();
+      let list = new boardClass.CardList();
       list.name = params.name;
       list.position = params.position;
-      list.createdAt = dbhelper.Timestamp();
+      list.createdAt = helper.getTimestamp();
       list.modifiedAt = list.createdAt;
       list.version = 1;
       list.boardId = ObjectId(params.id);
@@ -266,9 +274,8 @@ function updateCardListPosition(socket, parameters){
                         callback();
                   }
             })}, function(err) {
-                  err = 2;
                   if(err) {
-                        error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardListPosition, params);
+                        error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardListPosition, params.timestamp);
                         return;
                   } else {
                         socket.emit('[Board] Update Card List Position Success', parameters.cardLists); 
@@ -424,31 +431,42 @@ function deleteCardList(socket, parameters){
 
       let params = sanitize(parameters);
 
-      db.collection('board-lists').findOne({_id: ObjectId(params.id)}, {projection: {cards: 1}}, (err, resList) => {
-            if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeletingCardList, params);
-            else {
+      db.collection('board-lists').findOne({_id: ObjectId(params.id)}, {projection: {boardId: 1, cards: 1}}, (err, resList) => {
+            if(err) { 
+                  return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeletingCardList, params.timestamp);
+            } else if (!resList) {
+                  error.sendError(socket, error.typeErrors.NotFound, err, error.notFoundErrors.DataNotFound);
+                  return;
+            } else {
                   if(resList.cards.length != 0){
                         db.collection('board-cards').deleteMany({_id: {$in: resList.cards}}).catch((err) => {
-                              return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeletingCardList, params);
+                              return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeletingCardList, params.timestamp);
                         });
                   }
 
-                  db.collection('board-lists').deleteOne({_id: resList._id}).catch((err) => {
-                        return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeletingCardList, params);
+                  db.collection('boards').updateOne({_id: resList.boardId}, {$pull: {lists: resList._id}}, (err, resBoard) => {
+                        if(err) { 
+                              return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeletingCardList, params.timestamp);
+                        } else {
+                              db.collection('board-lists').deleteOne({_id: resList._id}, function (err, resDelList){
+                                    if (err) {
+                                          return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeletingCardList, params.timestamp);
+                                    }
+                                    socket.emit('[Board] Delete Card List Success', params.id);
+                              });
+                        }
                   });
-
-                  socket.emit('[Board] Delete Card List Success', params.id);
             }
       });
 }
 
 //#endregion
 
-//#region Card Item
+// #region Card Item
 
 function getCardItems(socket, parameters){
 
-      let params = sanitize(parameters);
+      const params = sanitize(parameters);
 
       db.collection('board-cards').find({cardListId: ObjectId(params.id)}).toArray(function(err, resItems) {
             if(err) console.log(err) 
@@ -458,14 +476,30 @@ function getCardItems(socket, parameters){
       });
 }
 
-function addCardItem(socket, parameters){
+function getCardItem(socket, parameters){
 
       let params = sanitize(parameters);
 
-      let card = new modelBoard.CardItem();
+      db.collection('board-cards').findOne({_id: ObjectId(params.id)}, (err, result) => {
+            if (err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.GetCardItem);
+                  return;
+            } else {
+                  helper.convertToIds(result, 'users', true);
+                  socket.emit('[Board] Get Card Item Success', result);
+                  MessageController.getMessages(socket, result.messages)
+            }
+      });
+}
+
+function addCardItem(socket, parameters){
+
+      const params = sanitize(parameters);
+
+      let card = new boardClass.CardItem();
       card.name = params.name;
       card.position = params.position;
-      card.createdAt = dbhelper.Timestamp();
+      card.createdAt = helper.getTimestamp();
       card.modifiedAt = card.createdAt;
       card.version = 1;
       card.cardListId = ObjectId(params.id);
@@ -474,15 +508,14 @@ function addCardItem(socket, parameters){
       db.collection('board-cards').insertOne(card, (err, result) => {
             if(err) console.log(err)
             else {
-                  db.collection('board-lists').updateOne({_id: card.cardListId}, {$push: {cards: ObjectId(result.ops[0]._id)}}, (err, res) =>{
+                  db.collection('board-lists').updateOne({_id: card.cardListId}, {$push: {cards: ObjectId(result.ops[0]._id)}}, (err, res) => {
                         if(err) console.log(err)
                         else {
                               socket.emit('[Board] Add Card Item Success', result.ops[0]);
                         }
                   });
             }
-      })
-
+      });
 }
 
 function updateCardItemPosition(socket, parameters){
@@ -492,22 +525,22 @@ function updateCardItemPosition(socket, parameters){
       
       params.to.carditems.forEach(cardItem => {
             db.collection('board-cards').updateOne( {_id: ObjectId(cardItem.id)}, { $set: { 'position': cardItem.position, 'cardListId': cardListId}}, (err, result) => {
-                  if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPosition, params);
+                  if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPosition, params.timestamp);
             })
       })
 
-      if(!isEmpty(params.changedId)) {
+      if(!helper.isEmpty(params.changedId)) {
             db.collection('board-lists').updateOne( {_id: cardListId}, { $push: { 'cards': ObjectId(params.changedId) }}, (err, result) => {
-                  if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPosition, params);
+                  if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPosition, params.timestamp);
             });
             
             db.collection('board-lists').updateOne( {_id: ObjectId(params.from.id)}, { $pull: { 'cards': ObjectId(params.changedId) }}, (err, result) => {
-                  if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPosition, params);
+                  if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPosition, params.timestamp);
             });
 
             params.from.carditems.forEach(cardItem => {
                   db.collection('board-cards').updateOne( {_id: ObjectId(cardItem.id)}, { $set: { 'position': cardItem.position }}, (err, result) => {
-                        if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPosition, params);
+                        if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPosition, params.timestamp);
                   })
             });
       }
@@ -515,16 +548,461 @@ function updateCardItemPosition(socket, parameters){
       socket.emit('[Board] Update Card Item Position Success', 0);
 }
 
-//#endregion
+function updateCardItemProperties(socket, parameters) {
+      const params = sanitize(parameters);
 
-function isEmpty(obj) {
-      for(var prop in obj) {
-            if(obj.hasOwnProperty(prop))
-                  return false;
+      console.log(params);
+
+      let query = {$set: {}}
+      if (params.name !== undefined) {
+            query.$set['name'] = params.name;
       }
-  
-      return true;
+      if (params.description !== undefined) {
+            query.$set['description'] = params.description;
+      }
+
+      db.collection('board-cards').updateOne({_id: ObjectId(params.id)}, query, (err, res) => {
+            if (err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemProperties);
+                  return;
+            } else if (res.matchedCount === 0) {
+                  error.sendError(socket, error.typeErrors.NotFound, err, error.notFoundErrors.DataNotFound);
+                  return;
+            } else {
+                  return socket.emit('[Board] Update Card Item Properties Success', {id: ObjectId(params.id), name: params.name, description: params.description});
+            }
+      });
 }
+
+function updateCardItemPriority(socket, parameters) {
+      const params = sanitize(parameters);
+
+      if (params.priority === undefined || params.priority === null) {
+            error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPriority);
+            return;
+      }
+
+      db.collection('board-cards').updateOne({_id: ObjectId(params.id)}, {$set: {'priority': params.priority}}, (err, res) => {
+            if (err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingCardItemPriority);
+                  return;
+            } else if (res.matchedCount === 0) {
+                  error.sendError(socket, error.typeErrors.NotFound, err, error.notFoundErrors.DataNotFound);
+                  return;
+            } else {
+                  return socket.emit('[Board] Update Card Item Priority Success', {id: ObjectId(params.id), priority: params.priority});
+            }
+      });
+}
+
+function deleteCardItem(socket, parameters){
+
+      const params = sanitize(parameters);
+
+      db.collection('board-cards').findOne({_id: ObjectId(params.id)}, {projection: {cardListId: 1}}, (err, resCard) => {
+            if(err) {
+                  return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeletingCardItem);
+            } else if (!resCard) {
+                  error.sendError(socket, error.typeErrors.NotFound, err, error.notFoundErrors.DataNotFound);
+                  return;
+            } else {
+                  db.collection('board-lists').updateOne({_id: resCard.cardListId}, {$pull: {cards: resCard._id}}, (err, resList) => {
+                        if(err) { 
+                              return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeletingCardItem, params.timestamp);
+                        } else {
+                              db.collection('board-cards').deleteOne({_id: resList._id}, function (err, resDelCard){
+                                    if (err) {
+                                          return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeletingCardList, params.timestamp);
+                                    } else {
+                                          socket.emit('[Board] Delete Card Item Success', params.id);
+                                    }
+                              });
+                        }
+                  });
+            }
+      });
+}
+
+// #endregion
+
+// #region Due Date
+
+function updateDueDate(socket, parameters) {
+      const params = sanitize(parameters);
+
+      let dueDate = new boardClass.DueDate();
+      dueDate.date = new Date(params.dueDate.date);
+      dueDate.remindAt = params.dueDate.remindAt;
+      dueDate.done = params.dueDate.done;
+
+      db.collection('board-cards').updateOne({_id: ObjectId(params.id)}, {$set: {'dueDate': dueDate}}, (err, res) => {
+            if (err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdatingDueDateToCard);
+                  return;
+            } else if (res.matchedCount === 0) {
+                  error.sendError(socket, error.typeErrors.NotFound, err, error.notFoundErrors.DataNotFound);
+                  return;
+            } else {
+                  return socket.emit('[Board] Update Card Item Due Date Success', {id: ObjectId(params.id), dueDate: dueDate});
+            }
+      });
+}
+
+function deleteDueDate(socket, parameters) {
+      const params = sanitize(parameters);
+
+      db.collection('board-cards').updateOne({_id: ObjectId(params.id)}, {$unset: {'dueDate': 1}}, (err, res) => {
+            if (err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeletingDueDateToCard);
+                  return;
+            } else if (res.matchedCount === 0) {
+                  error.sendError(socket, error.typeErrors.NotFound, err, error.notFoundErrors.DataNotFound);
+                  return;
+            } else {
+                  return socket.emit('[Board] Delete Card Item Due Date Success', params.id);
+            }
+      });
+}
+
+// #endregion
+
+// #region Members
+
+function addMemberToBoard(socket, parameters) {
+      const params = sanitize(parameters);
+
+      db.collection('boards').findOne({_id: ObjectId(params.id)}, {projection: { settings: 1 }}, (err, resBoard) => {
+            if(err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToBoard);
+                  return;
+            } else if (!resBoard) {
+                  error.sendError(socket, error.typeErrors.NotFound, err, error.notFoundErrors.DataNotFound);
+                  return;
+            } else {
+                  if (!resBoard.settings.adminUsers.some(m => m === ObjectId(socket.id))) {
+                        error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToBoard);
+                        return;
+                  } else if (resBoard.settings.users.some(m => m === ObjectId(params.userId))) {
+                        error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToBoard);
+                        return;
+                  } else {
+                        const newBoard = {
+                              _id: ObjectId(params.id),
+                              settings: { 
+                                    starred: false,
+                                    admin: false
+                              }
+                        }
+      
+                        db.collection('users').findOneAndUpdate({_id: ObjectId(params.userId)}, {$push: {boards: newBoard}}, {projection: {password: 0, status: 0, image: 0, createdAt: 0, modifiedAt: 0}}, (err, resUser) =>{
+                              if(err) {
+                                    error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToBoard);
+                                    return;
+                              } else {
+                                    db.collection('boards').updateOne( {_id: ObjectId(params.id)}, {$push: { 'settings.users': ObjectId(params.userId) }}, (err, result) => {
+                                          if(err) {
+                                                error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToBoard);
+                                                return;
+                                          } else {
+                                                socket.emit('[User] Get Users Success', resUser.value);
+                                                return socket.emit('[Board] Add Board Member Success', {_id: ObjectId(params.id), userId: ObjectId(params.userId)});
+                                          }
+                              
+                                    })
+                              }
+                        });
+                  }
+            }
+      });
+
+}
+
+function deleteMemberToBoard(socket, parameters) {
+
+}
+
+function addMemberToCard(socket, parameters){
+
+      const params = sanitize(parameters);
+
+      db.collection('board-cards').findOne({_id: ObjectId(params.id)}, {projection: { cardListId: 1 }}, (err, carditem) => {
+            db.collection('board-lists').findOne({_id: carditem.cardListId}, {projection: { boardId: 1 }}, (err, cardlist) => {
+
+                  // Check if Card already has this member or it belongs to the boards
+                  db.collection('users').findOne({_id: ObjectId(params.userId)}, {projection: { boards: 1 }}, (err, newUser) => {
+                        if(err) {
+                              error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToCard);
+                              return;
+                        } else if (!newUser) {
+                              error.sendError(socket, error.typeErrors.NotFound, err, error.notFoundErrors.DataNotFound);
+                              return;
+                        } else if (!newUser.boards.some(m => m._id.toString() === cardlist.boardId.toString())) {
+                              error.sendError(socket, error.typeErrors.Board, 'New user does not belong to board', error.boardErrors.AddingMemberToCard);
+                              return;
+                        } else {
+                              // Check if user belongs to the board
+                              db.collection('users').findOne({_id: ObjectId(socket.id)}, {projection: { boards: 1 }}, (err, socketUser) => {
+                                    if(err) {
+                                          error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToCard);
+                                          return;
+                                    } else if (!socketUser) {
+                                          error.sendError(socket, error.typeErrors.NotFound, err, error.notFoundErrors.DataNotFound);
+                                          return;
+                                    } else if (!socketUser.boards.some(m => m._id.toString() === cardlist.boardId.toString() && m.settings.admin)) {
+                                          error.sendError(socket, error.typeErrors.Board, 'Socket user does not belong to this board or does not have permissions', error.boardErrors.AddingMemberToCard);
+                                          return;
+                                    } else {
+                                          db.collection('board-cards').updateOne({_id: ObjectId(params.id)}, {$push: { 'users': ObjectId(params.userId) }}, (err, resCard) => {
+                                                if(err) {
+                                                      error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToCard);
+                                                      return;
+                                                } else {
+                                                      return socket.emit('[Board] Add Card Item Member Success', params);
+                                                }
+                                          });
+                                    }
+                              });
+                        }
+                  });
+            });
+      });
+
+}
+
+function deleteMemberToCard(socket, parameters) {
+      const params = sanitize(parameters);
+
+      db.collection('board-cards').findOne({_id: ObjectId(params.id)}, {projection: { cardListId: 1 }}, (err, carditem) => {
+            db.collection('board-lists').findOne({_id: carditem.cardListId}, {projection: { boardId: 1 }}, (err, cardlist) => {
+
+                  // Check if Card already has this member or it belongs to the boards
+                  db.collection('users').findOne({_id: ObjectId(params.userId)}, {projection: { boards: 1 }}, (err, newUser) => {
+                        if(err) {
+                              error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToCard);
+                              return;
+                        } else if (!newUser) {
+                              error.sendError(socket, error.typeErrors.NotFound, err, error.notFoundErrors.DataNotFound);
+                              return;
+                        } else if (!newUser.boards.some(m => m._id.toString() === cardlist.boardId.toString())) {
+                              error.sendError(socket, error.typeErrors.Board, 'New user does not belong to board', error.boardErrors.AddingMemberToCard);
+                              return;
+                        } else {
+                              // Check if user belongs to the board
+                              db.collection('users').findOne({_id: ObjectId(socket.id)}, {projection: { boards: 1 }}, (err, socketUser) => {
+                                    if(err) {
+                                          error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToCard);
+                                          return;
+                                    } else if (!socketUser) {
+                                          error.sendError(socket, error.typeErrors.NotFound, err, error.notFoundErrors.DataNotFound);
+                                          return;
+                                    } else if (!socketUser.boards.some(m => m._id.toString() === cardlist.boardId.toString() && m.settings.admin)) {
+                                          error.sendError(socket, error.typeErrors.Board, 'Socket user does not belong to board or have permissions', error.boardErrors.AddingMemberToCard);
+                                          return;
+                                    } else {
+                                          db.collection('board-cards').updateOne({_id: ObjectId(params.id)}, {$pull: { 'users': ObjectId(params.userId) }}, (err, resCard) => {
+                                                if(err) {
+                                                      error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToCard);
+                                                      return;
+                                                } else {
+                                                      return socket.emit('[Board] Delete Card Item Member Success', params);
+                                                }
+                                          });
+                                    }
+                              });
+                        }
+                  });
+            });
+      });
+}
+
+// #endregion
+
+// #region Attachments
+
+function addAttachment(socket, parameters) {
+      const params = sanitize(parameters);
+
+      let attachment = new boardClass.Attachment();
+      attachment.userId = ObjectId(socket.id);
+      attachment.date = new Date();
+      attachment._id = ObjectId.createFromTime(attachment.date.valueOf());
+      if (params.value.endsWith('//link')) {
+            params.value = params.value.substring(0, params.value.length - 6)
+            attachment.name = params.value;
+            attachment.dataType = 'link';
+      } else {
+            let index = params.value.lastIndexOf('.');
+            attachment.name = params.value.substring(0, index);
+            attachment.dataType = params.value.substring(index + 1)
+      }
+      attachment.value = params.value;
+
+      db.collection('board-cards').updateOne({_id: ObjectId(params.cardId)}, {$push: {attachments: attachment}}, (err, res) =>{
+            if (err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddAttachment);
+                  return;
+            } else {
+                  socket.emit('[Board] Add Card Item Attachment Success', {cardId: params.cardId, attachment: attachment});
+            }
+      });
+}
+
+function updateAttachment(socket, parameters) {
+      const params = sanitize(parameters);
+
+      let query = { $set: {'attachments.$.name': params.name}};
+      if (params.value !== undefined) {
+            query.$set['attachments.$.value'] = params.value;
+      }
+
+      db.collection('board-cards').updateOne({_id: ObjectId(params.cardId), 'attachments._id': ObjectId(params.id)}, query, (err, res) =>{
+            if (err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdateAttachment);
+                  return;
+            } else {
+                  socket.emit('[Board] Update Card Item Attachment Success', params);
+            }
+      });
+}
+
+function deleteAttachment(socket, parameters) {
+      const params = sanitize(parameters);
+
+      db.collection('board-cards').findOneAndUpdate({_id: ObjectId(params.cardId), 'attachments._id': ObjectId(params.id)}, {$pull: {attachments: {_id: ObjectId(params.id)}}}, (err, res) =>{
+            if (err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeleteAttachment);
+                  return;
+            } else {
+                  const attachment = res.value.attachments.find(m => m._id.toString() === params.id)
+                  if(attachment !== undefined && attachment.dataType !== 'link') {
+                        fs.unlink(config.dir.attachments + attachment.value, (err) => {})
+                  }
+
+                  socket.emit('[Board] Delete Card Item Attachment Success', params);
+            }
+      });
+}
+
+// #endregion
+
+//#region Checklists
+
+function addChecklist(socket, parameters) {
+      const params = sanitize(parameters);
+
+      let checklist = new boardClass.CheckList();
+      checklist._id = ObjectId.createFromTime(new Date());
+      checklist.name = '';
+      checklist.hide = false;
+      let checkitem = new boardClass.CheckItem();
+      checkitem._id = ObjectId.createFromTime(new Date());
+      checkitem.name = '';
+      checkitem.checked = false;
+      checklist.checkitems.push(checkitem);
+
+
+      db.collection('board-cards').updateOne({_id: ObjectId(params.id)}, {$push: {checklists: checklist}}, (err, res) =>{
+            if (err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddChecklist);
+                  return;
+            } else {
+                  socket.emit('[Board] Add Card Item Checklist Success', {id: params.id, checklist: checklist});
+            }
+      });
+}
+
+function updateChecklist(socket, parameters) {
+      const params = sanitize(parameters);
+
+      let query = { $set: {'checklists.$.hide': params.hide}};
+      if (params.name !== undefined) {
+            query.$set['checklists.$.name'] = params.name;
+      }
+
+      db.collection('board-cards').updateOne({_id: ObjectId(params.id), 'checklists._id': ObjectId(params.checklistId)}, query, (err, res) =>{
+            if (err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdateChecklist);
+                  return;
+            } else {
+                  socket.emit('[Board] Update Card Item Checklist Success', params);
+            }
+      });
+}
+
+function deleteChecklist(socket, parameters) {
+      const params = sanitize(parameters);
+
+      db.collection('board-cards').updateOne({_id: ObjectId(params.id), 'checklists._id': ObjectId(params.checklistId)}, {$pull: {checklists: {_id: ObjectId(params.checklistId)}}}, (err, res) =>{
+            if (err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeleteChecklist);
+                  return;
+            } else {
+                  socket.emit('[Board] Delete Card Item Checklist Success', params);
+            }
+      });
+}
+
+function addChecklistItem(socket, parameters) {
+      const params = sanitize(parameters);
+
+      let checkitem = new boardClass.CheckItem();
+      checkitem._id = ObjectId.createFromTime(new Date());
+      checkitem.name = '';
+      checkitem.checked = false;
+
+      db.collection('board-cards').updateOne({_id: ObjectId(params.id), 'checklists._id': ObjectId(params.checklistId)}, {$push: {'checklists.$.checkitems': checkitem}}, (err, res) =>{
+            if (err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddChecklistItem);
+                  return;
+            } else {
+                  socket.emit('[Board] Add Card Item Checklist Item Success', params);
+            }
+      });
+}
+
+function updateChecklistItem(socket, parameters) {
+      const params = sanitize(parameters);
+
+      const query = { 
+            // $set: {
+            //       'checklists.checkitems.name': params.name,
+            //       'checklists.checkitems.checked': params.checked
+            // }
+
+            $set: {
+                  'checklists.$.checkitems': {
+                        _id: ObjectId(params.checkitemId),
+                        name: params.name,
+                        checked: params.checked
+                  }
+            }
+      };
+
+      db.collection('board-cards').updateOne({_id: ObjectId(params.id), 'checklists.checkitems._id': ObjectId(params.checkitemId)}, query, (err, res) =>{
+            if (err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdateChecklistItem);
+                  return;
+            } else {
+                  console.log(res.modifiedCount)
+                  socket.emit('[Board] Update Card Item Checklist Item Success', params);
+            }
+      });
+}
+
+function deleteChecklistItem(socket, parameters) {
+      const params = sanitize(parameters);
+
+      db.collection('board-cards').updateOne({_id: ObjectId(params.id), 'checklists.checkitems._id': ObjectId(params.checkitemId)}, {$pull: {'checklists.$.checkitems': {_id: ObjectId(params.checkitemId)}}}, (err, res) =>{
+            if (err) {
+                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeleteChecklistItem);
+                  return;
+            } else {
+                  socket.emit('[Board] Delete Card Item Checklist Item Success', params);
+            }
+      });
+}
+
+//#endregion
 
 module.exports = {
       joinBoard,
@@ -542,6 +1020,29 @@ module.exports = {
       deleteCardList,
 
       getCardItems,
+      getCardItem,
       addCardItem,
-      updateCardItemPosition
+      updateCardItemPosition,
+      updateCardItemProperties,
+
+      addMemberToBoard,
+      deleteMemberToBoard,
+      addMemberToCard,
+      deleteMemberToCard,
+
+      updateDueDate,
+      updateCardItemPriority,
+      deleteCardItem,
+      deleteDueDate,
+
+      addAttachment,
+      updateAttachment,
+      deleteAttachment,
+
+      addChecklist,
+      addChecklistItem,
+      updateChecklist,
+      updateChecklistItem,
+      deleteChecklist,
+      deleteChecklistItem,
 };

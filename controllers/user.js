@@ -9,9 +9,9 @@ const sanitize = require('mongo-sanitize');
 
 const db = require('../index');
 const ObjectId = require('mongodb').ObjectID;
-const dbhelper = require('../services/db.helper')
+const helper = require('../services/helper.service')
 
-const md_auth = require('../services/jwt')
+const md_auth = require('../services/jwt.service')
 const emailservice = require('../services/email.service')
 const modelUser = require('../models/user');
 
@@ -43,8 +43,9 @@ function signUpUser(req, res, next){
                   user.surname = params.surname;
                   user.password = hash;
                   user.company = params.company;
+                  user.position = null;
                   user.language = params.language;
-                  user.createdAt = dbhelper.Timestamp();
+                  user.createdAt = helper.getTimestamp();
                   user.modifiedAt = user.createdAt;
 
                   db.collection('users').insertOne(user, (err, result) => {
@@ -200,7 +201,7 @@ function passwordReset(req, res, next){
                         return next(new errors.ResourceNotFoundError('Account does not exist'));
 
                   if(user.modifiedAt == usertoken.modifiedAt)
-                        db.collection('users').findOneAndUpdate({_id: user._id}, {$set: {password: hash, modifiedAt: dbhelper.Timestamp()}}, (err, result) => {
+                        db.collection('users').findOneAndUpdate({_id: user._id}, {$set: {password: hash, modifiedAt: helper.getTimestamp()}}, (err, result) => {
                               if(err)
                                     return next(new errors.InternalError(err))
                               if(result.value == null)

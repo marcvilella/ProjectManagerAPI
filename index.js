@@ -59,13 +59,13 @@ server.use(restify.plugins.fullResponse());
 const io  = require('socket.io')(server.server);
 io.use((socket, next) => {
   let token = socket.handshake.query.token;
-  if (require('./services/jwt').ensureAuthForConnection(token)) {
+  if (require('./services/jwt.service').ensureAuthForConnection(token)) {
     return next();
   }
   return next(new Error('authentication error'));
 });
 io.engine.generateId = (req) => {
-  return require('./services/jwt').IdForConnection(req._query.token);
+  return require('./services/jwt.service').IdForConnection(req._query.token);
 }
 
 
@@ -86,6 +86,7 @@ server.listen(config.development.port, () => {
 
     require('./routes/user')(server);
     require('./routes/board')(io.sockets);
+    // io.sockets.sockets[''].broadcast()
 // io.sockets.on('connection', function(socket){socket.rooms})
     console.log(`Server is listening on port ${config.development.port}`);
     winston.log('info', 'SERVER INITIALIZATION - OK \n\tListening to port ' + config.development.port);

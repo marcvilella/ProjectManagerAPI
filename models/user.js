@@ -3,7 +3,7 @@
 const UserValidator = {
       $jsonSchema: {
             bsonType: 'object',
-            required: [ 'name', 'surname', 'email', 'password', 'company', 'language', 'role', 'status', 'image', 'createdAt', 'modifiedAt' ],
+            required: [ 'name', 'surname', 'email', 'password', 'company', 'position','language', 'role', 'status', 'image', 'createdAt', 'modifiedAt' ],
             properties: {
                   name: {
                         bsonType: 'string',
@@ -23,6 +23,9 @@ const UserValidator = {
                         bsonType: 'string'
                   },
                   company: {
+                        bsonType: 'string'
+                  },
+                  position: {
                         bsonType: 'string'
                   },
                   language: {
@@ -54,6 +57,7 @@ class User {
             this.email = String,
             this.password = String,
             this.company = String,
+            this.position = String,
             this.language = 'english',
             this.role = 'ROLE_USER',
             this.status = 'pending',
