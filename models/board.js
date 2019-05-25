@@ -56,6 +56,7 @@ class CardItem {
 
             this.description = String;
             this.users = [];
+            this.usersWatching = [];
             this.priority = Number;
             this.dueDate = new DueDate();
             this.attachments = [];

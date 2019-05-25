@@ -100,7 +100,7 @@ function deleteMessage(socket, parameters) {
                   return;
             } else {
                   if (result.value.cardId !== undefined) {
-                        db.collection('board-cards').updateOne({_id: ObjectId(params.cardId)}, {$pull: {messages: ObjectId(result.value._id)}}, (err, res) =>{
+                        db.collection('board-cards').updateOne({_id: result.value.cardId}, {$pull: {messages: result.value._id}}, (err, res) =>{
                               if (err) {
                                     error.sendError(socket, error.typeErrors.Message, err, error.messageErrors.DeleteMessage);
                                     return;

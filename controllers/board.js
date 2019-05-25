@@ -70,6 +70,14 @@ function getBoard(socket, parameters){
                                                       return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.FindingBoard);
                                                 } else {
                                                       helper.convertToIds(resItems, 'users', false);
+                                                      resItems.forEach(item => {
+                                                            if (item.usersWatching.some(m => m.toString() === socket.id)) {
+                                                                  item.watching = true;
+                                                            } else {
+                                                                  item.watching = false;
+                                                            }
+                                                            item.usersWatching = undefined;
+                                                      })
                                                       socket.emit('[Board] Get Card Items Success', resItems);
                                                 }
                                           });
@@ -486,6 +494,14 @@ function getCardItem(socket, parameters){
                   return;
             } else {
                   helper.convertToIds(result, 'users', true);
+
+                  if (result.usersWatching.some(m => m.toString() === socket.id)) {
+                        result.watching = true;
+                  } else {
+                        result.watching = false;
+                  }
+                  result.usersWatching = undefined;
+
                   socket.emit('[Board] Get Card Item Success', result);
                   MessageController.getMessages(socket, result.messages)
             }
@@ -610,7 +626,7 @@ function deleteCardItem(socket, parameters){
                         if(err) { 
                               return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeletingCardItem, params.timestamp);
                         } else {
-                              db.collection('board-cards').deleteOne({_id: resList._id}, function (err, resDelCard){
+                              db.collection('board-cards').deleteOne({_id: resCard._id}, function (err, resDelCard){
                                     if (err) {
                                           return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.DeletingCardList, params.timestamp);
                                     } else {
@@ -955,6 +971,7 @@ function addChecklistItem(socket, parameters) {
                   error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddChecklistItem);
                   return;
             } else {
+                  params.checkitem = checkitem;
                   socket.emit('[Board] Add Card Item Checklist Item Success', params);
             }
       });
@@ -964,26 +981,27 @@ function updateChecklistItem(socket, parameters) {
       const params = sanitize(parameters);
 
       const query = { 
-            // $set: {
-            //       'checklists.checkitems.name': params.name,
-            //       'checklists.checkitems.checked': params.checked
-            // }
-
             $set: {
-                  'checklists.$.checkitems': {
-                        _id: ObjectId(params.checkitemId),
+                  'checklists.$.checkitems.$[i]': {
+                        _id: ObjectId(params.checkitemId), 
                         name: params.name,
                         checked: params.checked
                   }
             }
       };
+      const filter = {
+            arrayFilters: [ 
+                  {
+                        'i._id': ObjectId(params.checkitemId)
+                  },
+            ]
+      }
 
-      db.collection('board-cards').updateOne({_id: ObjectId(params.id), 'checklists.checkitems._id': ObjectId(params.checkitemId)}, query, (err, res) =>{
+      db.collection('board-cards').updateOne({_id: ObjectId(params.id), 'checklists.checkitems._id': ObjectId(params.checkitemId)}, query, filter, (err, res) =>{
             if (err) {
                   error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.UpdateChecklistItem);
                   return;
             } else {
-                  console.log(res.modifiedCount)
                   socket.emit('[Board] Update Card Item Checklist Item Success', params);
             }
       });
