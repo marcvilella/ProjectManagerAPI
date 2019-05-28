@@ -8,8 +8,10 @@ const async = require('async');
 
 const db = require('../index');
 const config = require('../config');
+const UserController = require('../controllers/user');
 const MessageController = require('../controllers/message');
 const boardClass = require('../models/board');
+const userClass = require('../models/user');
 const error = require('../models/error');
 
 function joinBoard(socket){
@@ -41,46 +43,63 @@ function getBoard(socket, parameters){
       let params = sanitize(parameters);
       
       db.collection('boards').findOne({_id: ObjectId(params.id)}, (err, resBoard) => {
-            if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.FindingBoard);
-            else if(resBoard){
+            if (err) {
+                  return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.FindingBoard);
+            } else if (resBoard) {
+
+                        //             const index = user.boards.findIndex(m => m._id == params.id);
+                        //             if (user.boards[index].settings.admin) {
+                        //                   adminUsers.push({_id: user._id})
+                        //             } else if (user.boards[index].settings.admin) {
+                        //                   projectUsers.push({_id: user._id})
+                        //             } else {
+                        //                   memberUsers.push({_id: user._id})
+                        //             }
+                        //             user.boards = user.boards.filter(m => m._id.toString() === params.id);
+                        //             users.push(user);
+                        //             callback();
+
                   db.collection('users').findOne({_id: ObjectId(socket.id)}, {projection: { boards: 1 }}, (err,resUser) => {
+                        if (err) {
+                              return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.FindingBoard);
+                        } else {
+                              resBoard.settings['starred'] = resUser.boards.find(m => m._id == params.id).settings.starred;
+                              socket.emit('[Board] Get Board Success', resBoard); 
+                        }
+                  });
+
+                  // UserController.getUsersByBoardId(socket, parameters);
+
+                  db.collection('board-lists').find({_id: {$in: resBoard.lists}}).toArray(function(err, resList) {
                         if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.FindingBoard);
                         else {
-                              resBoard.settings['starred'] = resUser.boards.find(m => m._id == params.id).settings.starred
-                              socket.emit('[Board] Get Board Success', resBoard);
+                              socket.emit('[Board] Get Card Lists Success', resList);
 
-                              db.collection('board-lists').find({_id: {$in: resBoard.lists}}).toArray(function(err, resList) {
-                                    if(err) return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.FindingBoard);
-                                    else {
-                                          socket.emit('[Board] Get Card Lists Success', resList);
+                              let cards = [];
+                              resList.map(list => list.cards).forEach(list => {
+                                    list.forEach(card => {
+                                          if(!helper.isEmpty(card))
+                                                cards.push(card)    
+                                    })
+                              })
 
-                                          let cards = [];
-                                          resList.map(list => list.cards).forEach(list => {
-                                                list.forEach(card => {
-                                                      if(!helper.isEmpty(card))
-                                                            cards.push(card)    
-                                                })
-                                          })
+                              if(cards.length == 0)
+                                    return;
 
-                                          if(cards.length == 0)
-                                                return;
-
-                                          db.collection('board-cards').find({_id: {$in: cards}}).toArray(function(err, resItems) {
-                                                if(err) {
-                                                      return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.FindingBoard);
+                              db.collection('board-cards').find({_id: {$in: cards}}).toArray(function(err, resItems) {
+                                    if(err) {
+                                          return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.FindingBoard);
+                                    } else {
+                                          helper.convertToIds(resItems, 'users', false);
+                                          resItems.forEach(item => {
+                                                if (item.usersWatching.some(m => m.toString() === socket.id)) {
+                                                      item.watching = true;
                                                 } else {
-                                                      helper.convertToIds(resItems, 'users', false);
-                                                      resItems.forEach(item => {
-                                                            if (item.usersWatching.some(m => m.toString() === socket.id)) {
-                                                                  item.watching = true;
-                                                            } else {
-                                                                  item.watching = false;
-                                                            }
-                                                            item.usersWatching = undefined;
-                                                      })
-                                                      socket.emit('[Board] Get Card Items Success', resItems);
+                                                      item.watching = false;
                                                 }
-                                          });
+                                                item.usersWatching = undefined;
+                                          })
+                                          socket.emit('[Board] Get Card Items Success', resItems);
                                     }
                               });
                         }
@@ -92,7 +111,6 @@ function getBoard(socket, parameters){
 function addBoard(socket, parameters){
 
       let params = sanitize(parameters);
-      console.log(params)
 
       let board = new boardClass.Board();
       board.name = params.name;
@@ -100,7 +118,6 @@ function addBoard(socket, parameters){
       board.settings.colorLight = params.settings.color.colorLight;
       board.settings.colorDark = params.settings.color.colorDark;
       params.settings.users.forEach(entry => board.settings.users.push(ObjectId(entry)));
-      board.settings.adminUsers.push(ObjectId(socket.id));
       board.createdAt = helper.getTimestamp();
       board.modifiedAt = board.createdAt;
       board.version = 1;
@@ -112,7 +129,7 @@ function addBoard(socket, parameters){
                         _id: ObjectId(result.ops[0]._id),
                         settings: { 
                               starred: false,
-                              admin: true
+                              role: 'admin'
                         }
                   }
 
@@ -163,7 +180,7 @@ function updateBoardStarred(socket, parameters){
             else {
                   socket.emit('[Board] Update Board Starred Success', {_id: ObjectId(params.id), settings: {starred: params.starred}});
             }
-      })
+      });
 }
 
 function deleteBoard(socket, parameters){
@@ -650,6 +667,9 @@ function updateDueDate(socket, parameters) {
       dueDate.date = new Date(params.dueDate.date);
       dueDate.remindAt = params.dueDate.remindAt;
       dueDate.done = params.dueDate.done;
+      if (params.dueDate.completedAt) {
+            dueDate.completedAt = new Date(params.dueDate.completedAt)
+      }
 
       db.collection('board-cards').updateOne({_id: ObjectId(params.id)}, {$set: {'dueDate': dueDate}}, (err, res) => {
             if (err) {
@@ -687,50 +707,89 @@ function deleteDueDate(socket, parameters) {
 function addMemberToBoard(socket, parameters) {
       const params = sanitize(parameters);
 
-      db.collection('boards').findOne({_id: ObjectId(params.id)}, {projection: { settings: 1 }}, (err, resBoard) => {
-            if(err) {
-                  error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToBoard);
-                  return;
-            } else if (!resBoard) {
-                  error.sendError(socket, error.typeErrors.NotFound, err, error.notFoundErrors.DataNotFound);
+      if(!helper.emailPattern.test(params.email)) {
+            error.sendError(socket, error.typeErrors.User, 'Email does not meet the conditions', error.userErrors.WrongEmail);
+            return;
+      }
+
+      helper.checkBoardPermissions(socket.id, params.id, 1).then(result => {
+            if (!result) {
+                  error.sendError(socket, error.typeErrors.User, 'Socket user does not have permissions', error.userErrors.Permission);
                   return;
             } else {
-                  if (!resBoard.settings.adminUsers.some(m => m === ObjectId(socket.id))) {
-                        error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToBoard);
-                        return;
-                  } else if (resBoard.settings.users.some(m => m === ObjectId(params.userId))) {
-                        error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToBoard);
-                        return;
-                  } else {
-                        const newBoard = {
-                              _id: ObjectId(params.id),
-                              settings: { 
-                                    starred: false,
-                                    admin: false
-                              }
-                        }
-      
-                        db.collection('users').findOneAndUpdate({_id: ObjectId(params.userId)}, {$push: {boards: newBoard}}, {projection: {password: 0, status: 0, image: 0, createdAt: 0, modifiedAt: 0}}, (err, resUser) =>{
-                              if(err) {
-                                    error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToBoard);
-                                    return;
-                              } else {
-                                    db.collection('boards').updateOne( {_id: ObjectId(params.id)}, {$push: { 'settings.users': ObjectId(params.userId) }}, (err, result) => {
-                                          if(err) {
-                                                error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToBoard);
-                                                return;
-                                          } else {
-                                                socket.emit('[User] Get Users Success', resUser.value);
-                                                return socket.emit('[Board] Add Board Member Success', {_id: ObjectId(params.id), userId: ObjectId(params.userId)});
+                  db.collection('users').findOne( {email: params.email}, {projection: {name: 1, surname:1, company: 1, position:1, email: 1, boards: 1 }}, (err, result) => {
+                        if(err) {
+                              error.sendError(socket, error.typeErrors.User, err, error.userErrors.UpdateUserBoardPermission);
+                              return;
+                        } else {
+                              let user;
+                              let query;
+                              if (!result) {
+                                    user = new userClass.User();
+                                    user.email = params.email;
+                                    user.boards.push({
+                                          _id: ObjectId(params.id),
+                                          settings: { 
+                                                starred: false,
+                                                role: 'pending'
                                           }
-                              
-                                    })
+                                    });
+                                    query = {
+                                          $set: user
+                                    }
                               }
-                        });
-                  }
+                              else {
+                                    if (result.boards.some(m => m._id.toString() === params.id)) {
+                                          return;
+                                    } else {
+                                          result.boards.push({
+                                                _id: ObjectId(params.id),
+                                                settings: { 
+                                                      starred: false,
+                                                      role: 'pending'
+                                                }
+                                          });
+                                          user = result;
+                                          query = {
+                                                $push: { 
+                                                      'boards': {
+                                                            _id: ObjectId(params.id),
+                                                            settings: { 
+                                                                  starred: false,
+                                                                  role: 'pending'
+                                                            }
+                                                      }
+                                                }
+                                          }
+                                    }
+                              }
+
+                              db.collection('users').updateOne( {email: params.email}, query, {upsert: 1}, (err, newUser) => {
+                                    if (err) {
+                                          error.sendError(socket, error.typeErrors.User, err, error.boardErrors.AddingMemberToBoard);
+                                          return;
+                                    } else {
+                                          if (user._id === undefined) {
+                                                user['_id'] = newUser.upsertedId._id;
+                                                user.name = params.email;
+                                          }
+
+                                          db.collection('boards').updateOne( {_id: ObjectId(params.id)}, {$push: { 'settings.users': ObjectId(user._id) }}, (err, result) => {
+                                                if(err) {
+                                                      error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.AddingMemberToBoard);
+                                                      return;
+                                                } else {
+                                                      socket.emit('[Board] Add Board Member Success', user);
+                                                      return;
+                                                }
+                                    
+                                          })
+                                    }
+                              });
+                        }
+                  });
             }
       });
-
 }
 
 function deleteMemberToBoard(socket, parameters) {
@@ -764,7 +823,7 @@ function addMemberToCard(socket, parameters){
                                     } else if (!socketUser) {
                                           error.sendError(socket, error.typeErrors.NotFound, err, error.notFoundErrors.DataNotFound);
                                           return;
-                                    } else if (!socketUser.boards.some(m => m._id.toString() === cardlist.boardId.toString() && m.settings.admin)) {
+                                    } else if (!socketUser.boards.some(m => m._id.toString() === cardlist.boardId.toString() && m.settings.role !== 'member')) {
                                           error.sendError(socket, error.typeErrors.Board, 'Socket user does not belong to this board or does not have permissions', error.boardErrors.AddingMemberToCard);
                                           return;
                                     } else {
@@ -811,7 +870,7 @@ function deleteMemberToCard(socket, parameters) {
                                     } else if (!socketUser) {
                                           error.sendError(socket, error.typeErrors.NotFound, err, error.notFoundErrors.DataNotFound);
                                           return;
-                                    } else if (!socketUser.boards.some(m => m._id.toString() === cardlist.boardId.toString() && m.settings.admin)) {
+                                    } else if (!socketUser.boards.some(m => m._id.toString() === cardlist.boardId.toString() && m.settings.role !== 'member')) {
                                           error.sendError(socket, error.typeErrors.Board, 'Socket user does not belong to board or have permissions', error.boardErrors.AddingMemberToCard);
                                           return;
                                     } else {

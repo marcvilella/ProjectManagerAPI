@@ -6,17 +6,16 @@ const errors = require('restify-errors');
 const winston = require('winston');
 const argon2 = require('argon2');
 const sanitize = require('mongo-sanitize');
+const async = require('async');
 
 const db = require('../index');
 const ObjectId = require('mongodb').ObjectID;
 const helper = require('../services/helper.service')
+const error = require('../models/error');
 
 const md_auth = require('../services/jwt.service')
 const emailservice = require('../services/email.service')
 const modelUser = require('../models/user');
-
-const emailPattern = /^[a-z0-9](\.?[a-z0-9_-]){0,}@[a-z0-9-]+\.([a-z]{1,6}\.)?[a-z]{2,6}$/;
-const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[_!@#\$%\^&\*])(?=.{8,20})/;
 
 //#endregion
 
@@ -29,10 +28,10 @@ function signUpUser(req, res, next){
       if(params.name != null && params.surname != null && params.email != null && params.password != null){   
             
             //Check if it a valid email
-            if(!emailPattern.test(params.email))
+            if(!helper.emailPattern.test(params.email))
                   return next(new errors.InvalidContentError('1: Email not valid'))
             //Check if it is a valid password
-            if(!passwordPattern.test(params.password))
+            if(!helper.passwordPattern.test(params.password))
                   return next(new errors.InvalidContentError('2: Password not valid'))
 
             //Hash password and save data
@@ -81,10 +80,10 @@ function logInUser(req, res, next){
       if(params.email != null && params.password != null){
 
             //Check if it a valid email
-            if(!emailPattern.test(params.email))
+            if(!helper.emailPattern.test(params.email))
                   return next(new errors.InvalidContentError('1: Email not valid'))
             //Check if it is a valid password
-            if(!passwordPattern.test(params.password))
+            if(!helper.passwordPattern.test(params.password))
                   return next(new errors.InvalidContentError('2: Password not valid'))
 
             db.collection('users').findOne({email: params.email.toLowerCase()}, (err, user) => {
@@ -189,7 +188,7 @@ function passwordReset(req, res, next){
             return next(new errors.NotAuthorizedError('1: Invalid token'));
 
       //Check if it is a valid password
-      if(!passwordPattern.test(params.password))
+      if(!helper.passwordPattern.test(params.password))
             return next(new errors.InvalidContentError('2: Password not valid'))
 
       //Hash password and update password
@@ -231,11 +230,66 @@ function getCurrentUser(socket){
       });
 }
 
+function getUsersByBoardId(socket, parameters) {
+
+      const params = sanitize(parameters);
+
+      db.collection('boards').findOne({_id: ObjectId(params.id)}, (err, resBoard) => {
+            if (err) {
+                  return error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.FindingBoard);
+            } else if (resBoard) {
+
+                  const users = [];
+
+                  async.each(resBoard.settings.users, function iteratee(userId, callback) {
+                        db.collection('users').findOne({_id: userId}, {projection: { name: 1, surname:1, company: 1, position:1, email: 1, boards: 1 }}, (err, user) => {
+                              if (err) {
+                                    callback(err);
+                              } else {
+                                    if (socket.id !== user._id.toString()) {
+                                          user.boards = user.boards.filter(m => m._id.toString() === params.id);
+                                    }
+                                    users.push(user);
+                                    callback();
+                              }
+                        })}, function(err) {
+                              if(err) {
+                                    error.sendError(socket, error.typeErrors.Board, err, error.boardErrors.FindingBoard);
+                                    return;
+                              } else {
+                                    socket.emit('[User] Get Users By Board Success', users); 
+                              }
+                        }
+                  );
+            }
+      });
+}
+
 function getUsers(socket, parameters){
       db.collection('users').find({}, { projection: { _id: 1, name: 1 } }).toArray(function(err,result) {
             if(err) console.log(err)
             else {
                   socket.emit('[User] Get Users Success', result);
+            }
+      });
+}
+
+function updateUserBoardPermission(socket, parameters) {
+      const params = sanitize(parameters);
+
+      helper.checkBoardPermissions(socket.id, params.id, 1).then(result => {
+            if (!result) {
+                  error.sendError(socket, error.typeErrors.User, 'Socket user does not have permissions', error.userErrors.Permission);
+                  return;
+            } else {
+                  db.collection('users').updateOne( {_id: ObjectId(params.userId), 'boards._id': ObjectId(params.id)}, { $set: { 'boards.$.settings.role': params.role }}, (err, result) => {
+                        if(err) {
+                              error.sendError(socket, error.typeErrors.User, err, error.userErrors.UpdateUserBoardPermission);
+                              return;
+                        } else {
+                              socket.emit('[User] Update User Board Permission Success', params);
+                        }
+                  });
             }
       });
 }
@@ -252,5 +306,7 @@ module.exports = {
       passwordReset,
 
       getCurrentUser,
-      getUsers
+      getUsersByBoardId,
+      getUsers,
+      updateUserBoardPermission
 };

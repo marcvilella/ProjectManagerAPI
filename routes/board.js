@@ -24,7 +24,7 @@ module.exports = function(sockets){
                   BoardController.getBoard(socket, params)
             }),
             socket.on('[Board] Add Board', function(params){
-                  BoardController.addBoard(socket, params)
+                  BoardController.addMemberToBoard(socket, params)
             }),
             socket.on('[Board] Add Board Member', function(params){
                   BoardController.addMemberToBoard(socket, params)
@@ -148,6 +148,13 @@ module.exports = function(sockets){
             }),
             socket.on('[User] Get Users', function(params){
                   UserController.getUsers(socket, params)
+            }),
+            socket.on('[User] Get Users By Board', function(params){
+                  UserController.getUsersByBoardId(socket, params)
+            })
+
+            socket.on('[User] Update User Board Permission', function(params){
+                  UserController.updateUserBoardPermission(socket, params)
             })
       })
 

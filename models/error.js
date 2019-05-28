@@ -40,10 +40,19 @@ function sendError(socket, action, errorToLog, errorToSend, timestamp = null){
 }
 
 const typeErrors = Object.freeze({
+      'User': '[User] Failure',
       'Board': '[Board] Failure',
       'Message': '[Message] Failure',
       'NotFound': '[Not Found] Failure'
 })
+
+const userErrors = Object.freeze({
+      'Permission': {'name': 'Not enought permissions', 'message': ''},
+
+      'WrongEmail': {'name': 'Not enought permissions', 'message': ''},
+      'UpdateUserBoardPermission': {'name': 'Update', 'message': ''},
+})
+
 
 const boardErrors = Object.freeze({
       'FindingBoard': {'name': 'Find', 'message': 'Board'},
@@ -89,4 +98,4 @@ const notFoundErrors = Object.freeze({
       'DataNotFound': { 'name': 'Data not found'}
 })
 
-module.exports = { sendError, typeErrors, boardErrors, messageErrors, notFoundErrors }
+module.exports = { sendError, typeErrors, userErrors, boardErrors, messageErrors, notFoundErrors }

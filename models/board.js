@@ -7,7 +7,6 @@ class BoardSettings {
             this.starred = Boolean;
             this.archived = Boolean;
             this.users = [];
-            this.adminUsers = [];
       }
 }
 
@@ -41,6 +40,7 @@ class DueDate {
             this.date = Date;
             this.remindAt = Number;
             this.done = Boolean;
+            this.completedAt = Date;
       }
 }
 
