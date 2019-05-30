@@ -1,6 +1,7 @@
 'use strict'
 
 const fs = require('fs');
+const path = require('path');
 const sanitize = require('mongo-sanitize');
 const IncomingForm = require('formidable').IncomingForm
 const errors = require('restify-errors');
@@ -23,6 +24,7 @@ function uploadAttachment(req, res, next) {
             if (index !==  -1) {
                   attachment.name = file.name.substring(0, index);
                   attachment.dataType = file.name.substring(index + 1);
+                  attachment.reqType = file.type;
                   attachment.value = file.path.substring(file.path.lastIndexOf('\\') + 1);
             } else {
                   return next(new errors.InvalidContentError('Invalid data type'));
@@ -44,7 +46,30 @@ function uploadAttachment(req, res, next) {
       next();
 }
 
+function downloadAttachment(req, res, next) {
+      console.log('downloading')
+
+      const params = sanitize(req.query);
+      let filePath = path.join(config.dir.attachments, params.value);
+      let stat = fs.statSync(filePath);
+
+      console.log(params)
+  
+      res.writeHead(200, {
+          'Content-Type': params.type,
+          'Content-Length': stat.size,
+          'Content-Disposition': 'attachment'
+      });
+  
+      var readStream = fs.createReadStream(filePath);
+      // We replaced all the event handlers with a simple call to readStream.pipe()
+      readStream.pipe(res);
+
+      next();
+}
+
 module.exports = {
-      uploadAttachment
+      uploadAttachment,
+      downloadAttachment
 };
 

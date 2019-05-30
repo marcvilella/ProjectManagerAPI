@@ -71,6 +71,7 @@ class Attachment {
             this._id = Number;
             this.name = String;
             this.dataType = String;
+            this.reqType = String;
             this.userId = Number;
             this.userName = String;
             this.value = String;

@@ -14,4 +14,5 @@ module.exports = function(server){
       server.post({name: 'User - Password Reset', path: '/api/auth/passwordreset'}, (req, res, next) => UserController.passwordReset(req, res, next)),
 
       server.post({name: 'Upload Attachment', path: '/api/upload'}, (req, res, next) =>  md_auth.ensureAuth(req, res, next), (req, res, next) => uploadService.uploadAttachment(req, res, next))
+      server.get({name: 'Download Attachment', path: '/api/download'}, (req, res, next) =>  md_auth.ensureAuth(req, res, next), (req, res, next) => uploadService.downloadAttachment(req, res, next))
 };

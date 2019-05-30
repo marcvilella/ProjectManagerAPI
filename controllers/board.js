@@ -21,7 +21,7 @@ function joinBoard(socket){
 // #region Board
 
 function getBoards(socket){
-      db.collection('boards').find({ 'settings.users': ObjectId(socket.id) }, { projection: { _id: 1, name: 1, modifiedAt: 1, settings: 1 } }).toArray(function(err, result) {
+      db.collection('boards').find({ 'settings.users': ObjectId(socket.id) }, { projection: { _id: 1, name: 1, createdAt: 1, modifiedAt: 1, settings: 1 } }).toArray(function(err, result) {
             if(err) console.log(err)
             else {
                   db.collection('users').findOne({_id: ObjectId(socket.id)}, {projection: { boards: 1 }}, (err,res) => {
