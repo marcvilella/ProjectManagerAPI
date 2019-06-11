@@ -47,7 +47,8 @@ module.exports = function(sockets){
                   BoardController.getCardLists(socket, params)
             }),
             socket.on('[Board] Add Card List', function(params){
-                  BoardController.addCardList(socket, params)
+                  console.log(socket.rooms)
+                  BoardController.addCardList(sockets.in(Object.keys(socket.rooms).find(m => m.startsWith('board-'))), params)
             }),
             socket.on('[Board] Add Card Item Member', function(params){
                   BoardController.addMemberToCard(socket, params)
