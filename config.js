@@ -8,6 +8,7 @@ module.exports = {
 		db: {
 			uri: process.env.MONGODB_URI || 'mongodb://localhost:27017',
 		},
+		client_url: 'http://localhost:4200'
 	},
 
 	production:{

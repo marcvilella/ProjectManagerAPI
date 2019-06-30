@@ -6,7 +6,7 @@ const sanitize = require('mongo-sanitize');
 const fs = require('fs');
 const async = require('async');
 
-const db = require('../index');
+const db = require('../index').db;
 const config = require('../config');
 const UserController = require('../controllers/user');
 const MessageController = require('../controllers/message');

@@ -1,36 +1,41 @@
 'use strict'
 
+const fs = require("fs");
 const nodemailer = require('nodemailer');
+const dirTemplates = __dirname.substring(0, __dirname.lastIndexOf('\\')) + '/email-templates';
 const url = 'http://localhost:4200/';
 
 /**
  ** Service Creation
  */
 
-function serviceAuth(){
-      return nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                  user: 'marcvimu2@gmail.com',
-                  pass: 'Marc1996'
-            }
-      });
-}
+const mailer = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+            user: 'marcvimu2@gmail.com',
+            pass: 'Marc1996'
+      }
+});
 
 function sendEmail(toEmail, template){
 
-      let email = {
+      const email = {
             from: 'marcvimu2@gmail.com',
             to: toEmail,
             subject: template.subject,
-            html: template.content
+            html: template.content,
+            attachments: [{
+                  filename: 'icon.png',
+                  path: 'icon.png',
+                  cid: 'unique@icon' 
+            }]
       }
 
-      serviceAuth().sendMail(email, function(error, info){
+      mailer.sendMail(email, function(error, info){
             if (error) {
-            console.log(error);
+                  console.log(error);
             } else {
-            console.log('Email sent: ' + info.response);
+                  console.log('Email sent: ' + info.response);
             }
       }); 
 }
@@ -39,25 +44,27 @@ function sendEmail(toEmail, template){
  ** Templates
  */
 
+
+
 const EmailConfirmation = {
       'en': {
             'subject': 'Confirm your account',
-            'content': '<a href="' + url + 'auth/log-in?id=#token">Click here to confirm your email</a>'
+            'content': fs.readFileSync( dirTemplates + '/sign-up/en.html').toString()
       },
       'es': {
-            'subject': 'Confirm your account',
-            'content': '<a href="' + url + 'auth/log-in?id=#token">Click here to confirm your email</a>'
+            'subject': 'Confirme su cuenta',
+            'content': fs.readFileSync( dirTemplates + '/sign-up/es.html').toString()
       }
 }
 
 const PasswordResetRequest = {
       'en': {
             'subject': 'Recover your account',
-            'content': '<a href="' + url + 'auth/password-reset?id=#token">Click here to recover your account</a>'
+            'content': fs.readFileSync( dirTemplates + '/password-request/en.html').toString()
       },
       'es': {
             'subject': 'Recover your account',
-            'content': '<a href="' + url + 'auth/password-reset?id=#token">Click here to recover your account</a>'
+            'content': fs.readFileSync( dirTemplates + '/password-request/es.html').toString()
       }
 }
 

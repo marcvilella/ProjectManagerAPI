@@ -8,9 +8,11 @@ const argon2 = require('argon2');
 const sanitize = require('mongo-sanitize');
 const async = require('async');
 
-const db = require('../index');
+const db = require('../index').db;
 const ObjectId = require('mongodb').ObjectID;
-const helper = require('../services/helper.service')
+const client_url = require('../config').development.client_url;
+const helper = require('../services/helper.service');
+const logger = require('../services/action.logger.service');
 const error = require('../models/error');
 
 const md_auth = require('../services/jwt.service')
@@ -25,14 +27,18 @@ function signUpUser(req, res, next){
       
       let params = sanitize(req.body);
 
-      if(params.name != null && params.surname != null && params.email != null && params.password != null){   
+      if(params.name != null && params.surname != null && params.email != null && params.password != null && params.language != null) {   
             
-            //Check if it a valid email
-            if(!helper.emailPattern.test(params.email))
+            // Check if it a valid email
+            if (!helper.emailPattern.test(params.email)) {
+                  logger.insertLog(req.connection.remoteAddress, logger.actions.Insert, 'Sign Up', params, logger.results.Error);
                   return next(new errors.InvalidContentError('1: Email not valid'))
-            //Check if it is a valid password
-            if(!helper.passwordPattern.test(params.password))
+            }
+            // Check if it is a valid password
+            if (!helper.passwordPattern.test(params.password)) {
+                  logger.insertLog(req.connection.remoteAddress, logger.actions.Insert, 'Sign Up', params, logger.results.Error);
                   return next(new errors.InvalidContentError('2: Password not valid'))
+            }
 
             //Hash password and save data
             argon2.hash(params.password).then(hash => {
@@ -48,26 +54,33 @@ function signUpUser(req, res, next){
                   user.modifiedAt = user.createdAt;
 
                   db.collection('users').insertOne(user, (err, result) => {
-                        if(err)
+                        if (err) {
+                              logger.insertLog(req.connection.remoteAddress, logger.actions.Insert, 'Sign Up', params, logger.results.Error, err);
                               return next(new errors.UnauthorizedError(err))
-                        if(!result)
+                        }
+                        if (!result) {
+                              logger.insertLog(req.connection.remoteAddress, logger.actions.Insert, 'Sign Up', params, logger.results.Error);
                               return next(new errors.ResourceNotFoundError('1: Error whilst saving'));
+                        }
 
                         res.send( 200, 'Registration successful');
 
-                        let token = md_auth.createVerificationToken(result.ops[0]);
-                        let template = emailservice.Templates.EmailConfirmation[result.ops[0].language];
-                        template.content = template.content.replace('#token', token);
+                        const token = md_auth.createVerificationToken(result.ops[0]);
+                        let template = emailservice.Templates.EmailConfirmation[result.ops[0].language.substr(0,2)];
+                        template.content = template.content.replace('{{username}}', user.name).replace('{{client_url}}', client_url).replace('{{token}}', token);
                   
                         emailservice.sendEmail(user.email, template);
 
+                        logger.insertLog(req.connection.remoteAddress, logger.actions.Insert, 'Sign Up', params, logger.results.Ok);
                         return next();
                   });
             }).catch(err => {
+                  logger.insertLog(req.connection.remoteAddress, logger.actions.Insert, 'Sign Up', params, logger.results.Error, err);
                   return next(new errors.InternalError(err));
             });
       }
-      else{
+      else {
+            logger.insertLog(req.connection.remoteAddress, logger.actions.Insert, 'Sign Up', params, logger.results.Error);
             return next(new errors.MissingParameterError('Insert all parameters'));
       }
 }
@@ -118,7 +131,6 @@ function logInUser(req, res, next){
 
 function logOutUser(req, res, next){
       
-      console.log(req)
       let params = sanitize(req.body);
   
       //TODO: Crear sesion en log in y borrarla
@@ -154,10 +166,7 @@ function requestPasswordReset(req, res, next){
       
       let params = sanitize(req.body);
 
-      db.collection('users').findOne({email: params.email},{projection: {name: 1, surname: 1, email:1, language: 1, modifiedAt: 1}}, (err, user) => {
-            console.log(err)
-            console.log(user)
-            
+      db.collection('users').findOne({email: params.email},{projection: {name: 1, surname: 1, email:1, language: 1}}, (err, user) => {            
             if(err)
                   return next(new errors.InternalError(err))
             if(!user)
@@ -166,9 +175,9 @@ function requestPasswordReset(req, res, next){
             let fullname = user.name + ' ' + user.surname;
             if(fullname.localeCompare(params.fullname) == 0){
                   let token = md_auth.createVerificationToken(user);
-                  let template = emailservice.Templates.PasswordResetRequest[user.language];
-                  
-                  template.content = template.content.replace('#token', token);
+                  let template = emailservice.Templates.PasswordResetRequest[user.language.substr(0,2)];
+                  template.content = template.content.replace('{{username}}', user.name).replace('{{client_url}}', client_url).replace('{{token}}', token);
+
                   emailservice.sendEmail(user.email, template);
 
                   res.send( 200, 'Password request successful');
@@ -250,7 +259,7 @@ function getUsersByBoardId(socket, parameters) {
                                           user.boards = user.boards.filter(m => m._id.toString() === params.id);
                                     }
                                     users.push(user);
-                                    callback();
+                                    callback(); 
                               }
                         })}, function(err) {
                               if(err) {

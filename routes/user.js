@@ -1,10 +1,12 @@
 'use strict'
 
+const server = require('../index').server;
+
 const md_auth = require('../services/jwt.service')
 const UserController = require('../controllers/user');
 const uploadService = require('../services/upload.service');
 
-module.exports = function(server){
+module.exports = function(){
       server.post({name: 'User - Sign Up', path: '/api/auth/signup'}, (req, res, next) => UserController.signUpUser(req, res, next)),
       server.post({name: 'User - Log In', path: '/api/auth/login'}, (req, res, next) => UserController.logInUser(req, res, next)),
       server.post({name: 'User - Log Out', path: '/api/auth/logout'}, (req, res, next) =>  md_auth.ensureAuth(req, res, next), (req, res, next) => UserController.logOutUser(req, res, next)),

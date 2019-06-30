@@ -1,6 +1,6 @@
 'use strict'
 
-const db = require('../index');
+const db = require('../index').db;
 const ObjectId = require('mongodb').ObjectID;
 const sanitize = require('mongo-sanitize');
 

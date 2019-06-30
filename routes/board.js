@@ -1,11 +1,12 @@
 'use strict'
 
+const sockets = require('../index').sockets;
+
 const UserController = require('../controllers/user');
 const BoardController = require('../controllers/board');
 const MessageController = require('../controllers/message');
 
-//TODO: Add JSON support
-module.exports = function(sockets){
+module.exports = function(){
       sockets.on('connection', function(socket){
             console.log('User Socket: ' + socket.id);
             socket.on('join', function(boardId) {  

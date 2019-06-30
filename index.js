@@ -82,16 +82,17 @@ server.listen(config.development.port, () => {
       process.exit(1);
     }
 
-    module.exports = client.db('ProjectManager');
+    const db = client.db('ProjectManager');
+    const sockets = io.sockets;
 
-    require('./routes/user')(server);
-    require('./routes/board')(io.sockets);
-    // io.sockets.sockets[''].broadcast()
-// io.sockets.on('connection', function(socket){socket.rooms})
+    module.exports = { server, sockets, db }
+
+    require('./routes/user')();
+    require('./routes/board')();
+    
     console.log(`Server is listening on port ${config.development.port}`);
     winston.log('info', 'SERVER INITIALIZATION - OK \n\tListening to port ' + config.development.port);
     
   });
 
 });
- 
